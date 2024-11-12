@@ -1,5 +1,5 @@
 [project]
-name = "langchain-basics"
+name = "training-llm-application-development"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
@@ -18,6 +18,4 @@ dependencies = [
 ]
 
 [tool.uv]
-dev-dependencies = [
-    "jupyter==1.1.1",
-]
+dev-dependencies = ["jupyter==1.1.1"]
