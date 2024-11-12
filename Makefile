@@ -2,9 +2,9 @@
 notebook:
 	uv run jupyter notebook --port 8080 --no-browser
 
-.PHONY: streamlit
-streamlit:
-	uv run streamlit run chapter03_customize/app.py --server.port 8080
+.PHONY: run_03
+run_03:
+	uv run streamlit run chapter03/app.py --server.port 8080
 
 IPYNBS = $(shell ls chapter*/*.ipynb)
 
