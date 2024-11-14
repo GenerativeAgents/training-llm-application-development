@@ -7,7 +7,7 @@ from core.rag.naive import create_naive_rag_chain
 def app() -> None:
     load_dotenv(override=True)
 
-    st.title("RAG")
+    st.title("Advanced RAG")
 
     # ユーザーの質問を受け付ける
     question = st.text_input("質問を入力してください")
