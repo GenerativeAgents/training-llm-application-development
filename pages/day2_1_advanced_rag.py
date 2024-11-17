@@ -18,9 +18,7 @@ def app() -> None:
         return
 
     # 回答を生成して表示
-    chain = create_rag_chain(rag_chain_type=rag_chain_type).with_config(
-        {"run_name": rag_chain_type}
-    )
+    chain = create_rag_chain(rag_chain_type=rag_chain_type)
 
     context_start = False
     answer_start = False

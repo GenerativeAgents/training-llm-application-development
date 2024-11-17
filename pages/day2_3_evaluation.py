@@ -5,6 +5,7 @@ import nest_asyncio
 import streamlit as st
 from langchain_core.embeddings import Embeddings
 from langchain_core.language_models import BaseChatModel
+from langchain_core.runnables import Runnable
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langsmith.evaluation import evaluate
 from langsmith.schemas import Example, Run
@@ -14,8 +15,7 @@ from ragas.llms import LangchainLLMWrapper
 from ragas.metrics import answer_relevancy, context_precision
 from ragas.metrics.base import MetricWithEmbeddings, MetricWithLLM, SingleTurnMetric
 
-from core.rag.factory import RAGChainType
-from core.rag.naive import create_naive_rag_chain
+from core.rag.factory import RAGChainType, create_rag_chain
 
 
 class RagasMetricEvaluator:
@@ -33,7 +33,7 @@ class RagasMetricEvaluator:
         if isinstance(self.metric, MetricWithEmbeddings):
             self.metric.embeddings = LangchainEmbeddingsWrapper(embeddings)
 
-    def evaluate(self, run: Run, example: Example) -> dict[str, Any]:
+    def __call__(self, run: Run, example: Example) -> dict[str, Any]:
         if run.outputs is None:
             raise ValueError("run.outputs is None.")
         if example.outputs is None:
@@ -49,14 +49,17 @@ class RagasMetricEvaluator:
         return {"key": self.metric.name, "score": score}
 
 
-def predict(inputs: dict[str, Any]) -> dict[str, Any]:
-    question = inputs["question"]
-    chain = create_naive_rag_chain()
-    output = chain.invoke(question)
-    return {
-        "contexts": output["context"],
-        "answer": output["answer"],
-    }
+class Predictor:
+    def __init__(self, chain: Runnable[str, dict[str, Any]]):
+        self.chain = chain
+
+    def __call__(self, inputs: dict[str, Any]) -> dict[str, Any]:
+        question = inputs["question"]
+        output = self.chain.invoke(question)
+        return {
+            "contexts": output["context"],
+            "answer": output["answer"],
+        }
 
 
 def app() -> None:
@@ -74,17 +77,18 @@ def app() -> None:
     llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
     embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
 
-    evaluators = [
-        RagasMetricEvaluator(metric, llm, embeddings).evaluate for metric in metrics
-    ]
+    evaluators = [RagasMetricEvaluator(metric, llm, embeddings) for metric in metrics]
 
     nest_asyncio.apply()
 
     with st.spinner("Evaluating..."):
         start_time = time.time()
 
+        chain = create_rag_chain(rag_chain_type=rag_chain_type)
+        predictor = Predictor(chain=chain)
+
         evaluate(
-            predict,
+            predictor,
             data="training-llm-app",
             evaluators=evaluators,
             metadata={"rag_chain_type": rag_chain_type},
