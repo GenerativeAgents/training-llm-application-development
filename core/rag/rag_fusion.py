@@ -1,5 +1,6 @@
 from typing import Any
 
+from langchain.load import dumps, loads
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
 from langchain_core.output_parsers import StrOutputParser
@@ -34,14 +35,33 @@ _rag_prompt_template = '''
 '''
 
 
-def flatten(nested_list: list[list[Document]]) -> list[Document]:
-    res = []
-    for sublist in nested_list:
-        res.extend(sublist)
-    return res
+def reciprocal_rank_fusion(
+    retriever_outputs: list[list[Document]],
+    k: int = 60,
+) -> list[Document]:
+    # 各ドキュメントの文字列とそのスコアの対応を保持する辞書を準備
+    content_score_mapping: dict[str, float] = {}
+
+    # 検索クエリごとにループ
+    for docs in retriever_outputs:
+        # 検索結果のドキュメントごとにループ
+        for rank, doc in enumerate(docs):
+            # ドキュメントをメタデータ含め文字列化
+            doc_str = dumps(doc)
+
+            # 初めて登場したコンテンツの場合はスコアを0で初期化
+            if doc_str not in content_score_mapping:
+                content_score_mapping[doc_str] = 0
+
+            # (1 / (順位 + k)) のスコアを加算
+            content_score_mapping[doc_str] += 1 / (rank + k)
+
+    # スコアの大きい順にソート
+    ranked = sorted(content_score_mapping.items(), key=lambda x: x[1], reverse=True)  # noqa
+    return [loads(doc_str) for doc_str, _ in ranked]
 
 
-def create_multi_query_rag_chain() -> Runnable[str, dict[str, Any]]:
+def create_rag_fusion_chain() -> Runnable[str, dict[str, Any]]:
     embedding = OpenAIEmbeddings(model="text-embedding-3-small")
     vector_store = Chroma(
         embedding_function=embedding,
@@ -61,7 +81,9 @@ def create_multi_query_rag_chain() -> Runnable[str, dict[str, Any]]:
 
     return RunnableParallel(
         {
-            "context": query_generation_chain | retriever.map() | flatten,
+            "context": query_generation_chain
+            | retriever.map()
+            | reciprocal_rank_fusion,
             "question": RunnablePassthrough(),
         }
     ).with_types(input_type=str) | RunnablePassthrough.assign(
