@@ -1,11 +1,14 @@
 import streamlit as st
 from dotenv import load_dotenv
 
-from core.rag.naive import create_naive_rag_chain
+from core.rag.factory import RAGChainType, create_rag_chain
 
 
 def app() -> None:
     load_dotenv(override=True)
+
+    with st.sidebar:
+        rag_chain_type = st.selectbox(label="RAG Chain Type", options=RAGChainType)
 
     st.title("Advanced RAG")
 
@@ -15,7 +18,7 @@ def app() -> None:
         return
 
     # 回答を生成して表示
-    chain = create_naive_rag_chain()
+    chain = create_rag_chain(rag_chain_type=rag_chain_type)
 
     context_start = False
     answer_start = False
