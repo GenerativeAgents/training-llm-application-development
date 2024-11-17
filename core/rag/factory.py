@@ -7,6 +7,7 @@ from core.rag.chains.hyde import create_hyde_rag_chain
 from core.rag.chains.multi_query import create_multi_query_rag_chain
 from core.rag.chains.naive import create_naive_rag_chain
 from core.rag.chains.rag_fusion import create_rag_fusion_chain
+from core.rag.chains.rerank import create_rerank_rag_chain
 
 
 class RAGChainType(str, Enum):
@@ -14,6 +15,7 @@ class RAGChainType(str, Enum):
     HYDE = "hyde"
     MULTI_QUERY = "multi_query"
     RAG_FUSION = "fag_fusion"
+    RERANK = "rerank"
 
 
 def create_rag_chain(rag_chain_type: RAGChainType) -> Runnable[str, dict[str, Any]]:
@@ -25,6 +27,8 @@ def create_rag_chain(rag_chain_type: RAGChainType) -> Runnable[str, dict[str, An
         chain = create_multi_query_rag_chain()
     elif rag_chain_type == RAGChainType.RAG_FUSION:
         chain = create_rag_fusion_chain()
+    elif rag_chain_type == RAGChainType.RERANK:
+        chain = create_rerank_rag_chain()
     else:
         raise ValueError(f"Unknown RAG chain type: {rag_chain_type}")
 
