@@ -14,6 +14,7 @@ from ragas.llms import LangchainLLMWrapper
 from ragas.metrics import answer_relevancy, context_precision
 from ragas.metrics.base import MetricWithEmbeddings, MetricWithLLM, SingleTurnMetric
 
+from core.rag.factory import RAGChainType
 from core.rag.naive import create_naive_rag_chain
 
 
@@ -59,6 +60,9 @@ def predict(inputs: dict[str, Any]) -> dict[str, Any]:
 
 
 def app() -> None:
+    with st.sidebar:
+        rag_chain_type = st.selectbox(label="RAG Chain Type", options=RAGChainType)
+
     st.title("Evaluation")
 
     clicked = st.button("実行")
@@ -83,6 +87,7 @@ def app() -> None:
             predict,
             data="training-llm-app",
             evaluators=evaluators,
+            metadata={"rag_chain_type": rag_chain_type},
         )
 
         end_time = time.time()
