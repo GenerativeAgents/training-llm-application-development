@@ -1,3 +1,4 @@
+import time
 from typing import Any
 
 import nest_asyncio
@@ -7,16 +8,22 @@ from langchain_core.language_models import BaseChatModel
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langsmith.evaluation import evaluate
 from langsmith.schemas import Example, Run
+from ragas import SingleTurnSample
 from ragas.embeddings import LangchainEmbeddingsWrapper
 from ragas.llms import LangchainLLMWrapper
 from ragas.metrics import answer_relevancy, context_precision
-from ragas.metrics.base import Metric, MetricWithEmbeddings, MetricWithLLM
+from ragas.metrics.base import MetricWithEmbeddings, MetricWithLLM, SingleTurnMetric
 
 from core.rag.naive import create_naive_rag_chain
 
 
 class RagasMetricEvaluator:
-    def __init__(self, metric: Metric, llm: BaseChatModel, embeddings: Embeddings):
+    def __init__(
+        self,
+        metric: SingleTurnMetric,
+        llm: BaseChatModel,
+        embeddings: Embeddings,
+    ):
         self.metric = metric
 
         # LLMとEmbeddingsをMetricに設定
@@ -26,17 +33,18 @@ class RagasMetricEvaluator:
             self.metric.embeddings = LangchainEmbeddingsWrapper(embeddings)
 
     def evaluate(self, run: Run, example: Example) -> dict[str, Any]:
-        context_strs = [doc.page_content for doc in run.outputs["contexts"]]
+        if run.outputs is None:
+            raise ValueError("run.outputs is None.")
+        if example.outputs is None:
+            raise ValueError("example.outputs is None.")
 
-        # Ragasの評価メトリクスのscoreメソッドでスコアを算出
-        score = self.metric.score(
-            {
-                "question": example.inputs["question"],
-                "answer": run.outputs["answer"],
-                "contexts": context_strs,
-                "ground_truth": example.outputs["ground_truth"],
-            },
+        sample = SingleTurnSample(
+            user_input=example.inputs["question"],
+            response=run.outputs["answer"],
+            retrieved_contexts=[doc.page_content for doc in run.outputs["contexts"]],
+            reference=example.outputs["ground_truth"],
         )
+        score = self.metric.single_turn_score(sample)
         return {"key": self.metric.name, "score": score}
 
 
@@ -59,7 +67,7 @@ def app() -> None:
 
     metrics = [context_precision, answer_relevancy]
 
-    llm = ChatOpenAI(model="gpt-4o", temperature=0)
+    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
     embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
 
     evaluators = [
@@ -69,12 +77,18 @@ def app() -> None:
     nest_asyncio.apply()
 
     with st.spinner("Evaluating..."):
+        start_time = time.time()
+
         evaluate(
             predict,
             data="training-llm-app",
             evaluators=evaluators,
         )
-    st.success("Evaluation completed.")
+
+        end_time = time.time()
+
+    elapsed_time = end_time - start_time
+    st.success(f"Evaluation completed. Elapsed time: {elapsed_time:.2f} sec.")
 
 
 app()

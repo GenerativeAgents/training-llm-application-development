@@ -1,10 +1,13 @@
+import time
+
 import nest_asyncio
 import streamlit as st
 from langchain_community.document_loaders import DirectoryLoader, TextLoader
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langsmith import Client
-from ragas.testset.evolutions import multi_context, reasoning, simple
-from ragas.testset.generator import TestsetGenerator
+from ragas.embeddings import LangchainEmbeddingsWrapper
+from ragas.llms import LangchainLLMWrapper
+from ragas.testset import TestsetGenerator
 
 
 def app() -> None:
@@ -24,27 +27,33 @@ def app() -> None:
     documents = loader.load()
     st.info(f"{len(documents)} documents loaded.")
 
-    # Ragas用のmetadataを追加
-    for document in documents:
-        document.metadata["filename"] = document.metadata["source"]
-
     # 合成テストデータの生成
     nest_asyncio.apply()
 
-    generator = TestsetGenerator.from_langchain(
-        generator_llm=ChatOpenAI(model="gpt-4o-mini"),
-        critic_llm=ChatOpenAI(model="gpt-4o-mini"),
-        embeddings=OpenAIEmbeddings(),
+    llm = LangchainLLMWrapper(ChatOpenAI(model="gpt-4o-mini"))
+    embeddings = LangchainEmbeddingsWrapper(
+        OpenAIEmbeddings(model="text-embedding-3-small")
     )
 
+    generator = TestsetGenerator(llm=llm)
+
     with st.spinner("Generating testset..."):
+        start_time = time.time()
+
         testset = generator.generate_with_langchain_docs(
             documents,
-            test_size=4,
-            distributions={simple: 0.5, reasoning: 0.25, multi_context: 0.25},
+            testset_size=4,
+            transforms_embedding_model=embeddings,
         )
 
+        end_time = time.time()
+
+    elapsed_time = end_time - start_time
+    st.success(f"Testset generated. Elapsed time: {elapsed_time:.2f} sec.")
+
     st.write(testset.to_pandas())
+
+    st.write(testset.to_list())
 
     # LangSmithのDatasetの作成
     dataset_name = "training-llm-app"
@@ -61,22 +70,22 @@ def app() -> None:
     outputs = []
     metadatas = []
 
-    for testset_record in testset.test_data:
+    for testset_record in testset.to_list():
         inputs.append(
             {
-                "question": testset_record.question,
+                "question": testset_record["user_input"],
             }
         )
         outputs.append(
             {
-                "contexts": testset_record.contexts,
-                "ground_truth": testset_record.ground_truth,
+                "contexts": testset_record["reference_contexts"],
+                "ground_truth": testset_record["reference"],
             }
         )
         metadatas.append(
             {
-                "source": testset_record.metadata[0]["source"],
-                "evolution_type": testset_record.evolution_type,
+                # "source": testset_record.metadata[0]["source"],
+                "synthesizer_name": testset_record["synthesizer_name"],
             }
         )
 
