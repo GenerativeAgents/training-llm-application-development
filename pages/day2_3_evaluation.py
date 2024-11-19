@@ -1,8 +1,9 @@
 import time
-from typing import Any
+from typing import Any, Type
 
 import nest_asyncio
 import streamlit as st
+from dotenv import load_dotenv
 from langchain_core.embeddings import Embeddings
 from langchain_core.language_models import BaseChatModel
 from langchain_core.runnables import Runnable
@@ -12,7 +13,7 @@ from langsmith.schemas import Example, Run
 from ragas import SingleTurnSample
 from ragas.embeddings import LangchainEmbeddingsWrapper
 from ragas.llms import LangchainLLMWrapper
-from ragas.metrics import answer_relevancy, context_precision
+from ragas.metrics import ContextPrecision, ResponseRelevancy
 from ragas.metrics.base import MetricWithEmbeddings, MetricWithLLM, SingleTurnMetric
 
 from app.rag.factory import RAGChainType, create_rag_chain
@@ -21,11 +22,11 @@ from app.rag.factory import RAGChainType, create_rag_chain
 class RagasMetricEvaluator:
     def __init__(
         self,
-        metric: SingleTurnMetric,
+        metric_class: Type[SingleTurnMetric],
         llm: BaseChatModel,
         embeddings: Embeddings,
     ):
-        self.metric = metric
+        self.metric = metric_class()
 
         # LLMとEmbeddingsをMetricに設定
         if isinstance(self.metric, MetricWithLLM):
@@ -63,7 +64,13 @@ class Predictor:
 
 
 def app() -> None:
+    load_dotenv(override=True)
+
     with st.sidebar:
+        model_name = st.selectbox(label="モデル", options=["gpt-4o-mini", "gpt-4o"])
+        temperature = st.slider(
+            label="temperature", min_value=0.0, max_value=1.0, value=0.0
+        )
         rag_chain_type = st.selectbox(label="RAG Chain Type", options=RAGChainType)
 
     st.title("Evaluation")
@@ -72,7 +79,7 @@ def app() -> None:
     if not clicked:
         return
 
-    metrics = [context_precision, answer_relevancy]
+    metrics = [ContextPrecision, ResponseRelevancy]
 
     llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
     embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
@@ -84,14 +91,19 @@ def app() -> None:
     with st.spinner("Evaluating..."):
         start_time = time.time()
 
-        chain = create_rag_chain(rag_chain_type=rag_chain_type)
+        model = ChatOpenAI(model=model_name, temperature=temperature)
+        chain = create_rag_chain(rag_chain_type=rag_chain_type, model=model)
         predictor = Predictor(chain=chain)
 
         evaluate(
             predictor,
             data="training-llm-app",
             evaluators=evaluators,
-            metadata={"rag_chain_type": rag_chain_type},
+            metadata={
+                "model_name": model_name,
+                "temperature": temperature,
+                "rag_chain_type": rag_chain_type,
+            },
         )
 
         end_time = time.time()

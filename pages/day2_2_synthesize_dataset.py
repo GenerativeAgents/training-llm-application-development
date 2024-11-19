@@ -2,6 +2,7 @@ import time
 
 import nest_asyncio
 import streamlit as st
+from dotenv import load_dotenv
 from langchain_community.document_loaders import DirectoryLoader, TextLoader
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langsmith import Client
@@ -11,6 +12,11 @@ from ragas.testset import TestsetGenerator
 
 
 def app() -> None:
+    load_dotenv(override=True)
+
+    with st.sidebar:
+        testset_size = st.number_input(label="Testset Size", min_value=1, value=4)
+
     st.title("Synthesize Dataset")
 
     clicked = st.button("実行")
@@ -42,7 +48,7 @@ def app() -> None:
 
         testset = generator.generate_with_langchain_docs(
             documents,
-            testset_size=4,
+            testset_size=testset_size,
             transforms_embedding_model=embeddings,
         )
 
@@ -84,7 +90,6 @@ def app() -> None:
         )
         metadatas.append(
             {
-                # "source": testset_record.metadata[0]["source"],
                 "synthesizer_name": testset_record["synthesizer_name"],
             }
         )
