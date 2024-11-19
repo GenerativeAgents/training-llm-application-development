@@ -99,7 +99,6 @@ def app() -> None:
             optional_text_label="[Optional] Please provide an explanation",
             key=str(run_id),
         )
-        print(feedback)
 
         if feedback:
             scores = {"👍": 1, "👎": 0}
