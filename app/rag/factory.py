@@ -3,13 +3,13 @@ from typing import Any
 
 from langchain_core.runnables import Runnable
 
-from core.rag.chains.hybrid import create_hybrid_rag_chain
-from core.rag.chains.hyde import create_hyde_rag_chain
-from core.rag.chains.multi_query import create_multi_query_rag_chain
-from core.rag.chains.naive import create_naive_rag_chain
-from core.rag.chains.rag_fusion import create_rag_fusion_chain
-from core.rag.chains.rerank import create_rerank_rag_chain
-from core.rag.chains.route import create_route_rag_chain
+from app.rag.chains.hybrid import create_hybrid_rag_chain
+from app.rag.chains.hyde import create_hyde_rag_chain
+from app.rag.chains.multi_query import create_multi_query_rag_chain
+from app.rag.chains.naive import create_naive_rag_chain
+from app.rag.chains.rag_fusion import create_rag_fusion_chain
+from app.rag.chains.rerank import create_rerank_rag_chain
+from app.rag.chains.route import create_route_rag_chain
 
 
 class RAGChainType(str, Enum):

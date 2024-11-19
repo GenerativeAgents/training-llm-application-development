@@ -15,7 +15,7 @@ from ragas.llms import LangchainLLMWrapper
 from ragas.metrics import answer_relevancy, context_precision
 from ragas.metrics.base import MetricWithEmbeddings, MetricWithLLM, SingleTurnMetric
 
-from core.rag.factory import RAGChainType, create_rag_chain
+from app.rag.factory import RAGChainType, create_rag_chain
 
 
 class RagasMetricEvaluator:

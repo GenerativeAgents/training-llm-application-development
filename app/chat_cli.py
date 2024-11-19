@@ -2,7 +2,7 @@
 会話履歴を蓄積しながら対話を行うCLIアプリケーション
 
 実行方法:
-    uv run python chapter01/chat_cli.py
+    uv run python app/chat_cli.py
 
 停止方法:
     Ctrl + C

@@ -1,7 +1,7 @@
 import streamlit as st
 from dotenv import load_dotenv
 
-from core.rag.factory import RAGChainType, create_rag_chain
+from app.rag.factory import RAGChainType, create_rag_chain
 
 
 def app() -> None:
