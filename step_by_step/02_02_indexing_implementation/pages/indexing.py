@@ -31,13 +31,14 @@ def app() -> None:
     st.info(f"{len(docs)} documents chunked.")
 
     # インデクシング
-    embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
     with st.spinner("Indexing documents..."):
-        Chroma.from_documents(
-            documents=docs,
-            embedding=embeddings,
+        embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
+        vector_store = Chroma(
+            embedding_function=embeddings,
             persist_directory="./tmp/chroma",
         )
+        vector_store.reset_collection()
+        vector_store.add_documents(docs)
     st.success("Indexing completed.")
 
 
