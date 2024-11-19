@@ -3,10 +3,11 @@ from typing import Any
 from langchain.load import dumps, loads
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
+from langchain_core.language_models import BaseChatModel
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import Runnable, RunnableParallel, RunnablePassthrough
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from langchain_openai import OpenAIEmbeddings
 from pydantic import BaseModel, Field
 
 
@@ -35,7 +36,7 @@ _rag_prompt_template = '''
 '''
 
 
-def reciprocal_rank_fusion(
+def _reciprocal_rank_fusion(
     retriever_outputs: list[list[Document]],
     k: int = 60,
 ) -> list[Document]:
@@ -61,7 +62,7 @@ def reciprocal_rank_fusion(
     return [loads(doc_str) for doc_str, _ in ranked]
 
 
-def create_rag_fusion_chain() -> Runnable[str, dict[str, Any]]:
+def create_rag_fusion_chain(model: BaseChatModel) -> Runnable[str, dict[str, Any]]:
     embedding = OpenAIEmbeddings(model="text-embedding-3-small")
     vector_store = Chroma(
         embedding_function=embedding,
@@ -70,8 +71,6 @@ def create_rag_fusion_chain() -> Runnable[str, dict[str, Any]]:
 
     retriever = vector_store.as_retriever()
     rag_prompt = ChatPromptTemplate.from_template(_rag_prompt_template)
-
-    model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
 
     query_generation_chain: Runnable[str, list[str]] = (
         ChatPromptTemplate.from_template(_query_generation_prompt)
@@ -83,7 +82,7 @@ def create_rag_fusion_chain() -> Runnable[str, dict[str, Any]]:
         {
             "context": query_generation_chain
             | retriever.map()
-            | reciprocal_rank_fusion,
+            | _reciprocal_rank_fusion,
             "question": RunnablePassthrough(),
         }
     ).with_types(input_type=str) | RunnablePassthrough.assign(

@@ -4,10 +4,11 @@ from typing import Any
 from langchain_chroma import Chroma
 from langchain_community.retrievers import TavilySearchAPIRetriever
 from langchain_core.documents import Document
+from langchain_core.language_models import BaseChatModel
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import Runnable, RunnableParallel, RunnablePassthrough
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from langchain_openai import OpenAIEmbeddings
 from pydantic import BaseModel
 
 _route_prompt = """\
@@ -62,10 +63,8 @@ _prompt_template = '''
 '''
 
 
-def create_route_rag_chain() -> Runnable[str, dict[str, Any]]:
+def create_route_rag_chain(model: BaseChatModel) -> Runnable[str, dict[str, Any]]:
     prompt = ChatPromptTemplate.from_template(_prompt_template)
-
-    model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
 
     route_chain: Runnable[str, Route] = (
         ChatPromptTemplate.from_template(_route_prompt)

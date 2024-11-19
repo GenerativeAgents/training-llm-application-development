@@ -3,6 +3,7 @@ from typing import Any
 import streamlit as st
 from dotenv import load_dotenv
 from langchain_chroma import Chroma
+from langchain_core.language_models import BaseChatModel
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import Runnable, RunnablePassthrough
@@ -19,10 +20,7 @@ _prompt_template = '''
 '''
 
 
-def create_rag_chain(
-    model_name: str,
-    temperature: float,
-) -> Runnable[Any, dict[str, Any]]:
+def create_rag_chain(model: BaseChatModel) -> Runnable[str, dict[str, Any]]:
     embedding = OpenAIEmbeddings(model="text-embedding-3-small")
     vector_store = Chroma(
         embedding_function=embedding,
@@ -31,8 +29,6 @@ def create_rag_chain(
 
     retriever = vector_store.as_retriever()
     prompt = ChatPromptTemplate.from_template(_prompt_template)
-
-    model = ChatOpenAI(model=model_name, temperature=temperature)
 
     return {
         "context": retriever,
@@ -57,7 +53,8 @@ def app() -> None:
         return
 
     # 回答を生成して表示
-    chain = create_rag_chain(model_name=model_name, temperature=temperature)
+    model = ChatOpenAI(model=model_name, temperature=temperature)
+    chain = create_rag_chain(model=model)
 
     context_start = False
     answer_start = False

@@ -2,10 +2,11 @@ from typing import Any
 
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
+from langchain_core.language_models import BaseChatModel
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import Runnable, RunnableParallel, RunnablePassthrough
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from langchain_openai import OpenAIEmbeddings
 from pydantic import BaseModel, Field
 
 
@@ -41,7 +42,7 @@ def flatten(nested_list: list[list[Document]]) -> list[Document]:
     return res
 
 
-def create_multi_query_rag_chain() -> Runnable[str, dict[str, Any]]:
+def create_multi_query_rag_chain(model: BaseChatModel) -> Runnable[str, dict[str, Any]]:
     embedding = OpenAIEmbeddings(model="text-embedding-3-small")
     vector_store = Chroma(
         embedding_function=embedding,
@@ -50,8 +51,6 @@ def create_multi_query_rag_chain() -> Runnable[str, dict[str, Any]]:
 
     retriever = vector_store.as_retriever()
     rag_prompt = ChatPromptTemplate.from_template(_rag_prompt_template)
-
-    model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
 
     query_generation_chain: Runnable[str, list[str]] = (
         ChatPromptTemplate.from_template(_query_generation_prompt)

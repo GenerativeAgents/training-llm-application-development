@@ -1,10 +1,11 @@
 from typing import Any
 
 from langchain_chroma import Chroma
+from langchain_core.language_models import BaseChatModel
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import Runnable, RunnableParallel, RunnablePassthrough
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from langchain_openai import OpenAIEmbeddings
 
 _prompt_template = '''
 以下の文脈だけを踏まえて質問に回答してください。
@@ -17,7 +18,7 @@ _prompt_template = '''
 '''
 
 
-def create_naive_rag_chain() -> Runnable[str, dict[str, Any]]:
+def create_naive_rag_chain(model: BaseChatModel) -> Runnable[str, dict[str, Any]]:
     embedding = OpenAIEmbeddings(model="text-embedding-3-small")
     vector_store = Chroma(
         embedding_function=embedding,
@@ -26,8 +27,6 @@ def create_naive_rag_chain() -> Runnable[str, dict[str, Any]]:
 
     retriever = vector_store.as_retriever()
     prompt = ChatPromptTemplate.from_template(_prompt_template)
-
-    model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
 
     return RunnableParallel(
         {

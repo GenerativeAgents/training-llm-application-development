@@ -5,14 +5,15 @@ from langchain_chroma import Chroma
 from langchain_community.document_loaders import DirectoryLoader, TextLoader
 from langchain_community.retrievers import BM25Retriever
 from langchain_core.documents import Document
+from langchain_core.language_models import BaseChatModel
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.retrievers import RetrieverLike
 from langchain_core.runnables import Runnable, RunnableParallel, RunnablePassthrough
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from langchain_openai import OpenAIEmbeddings
 
 
-def reciprocal_rank_fusion(
+def _reciprocal_rank_fusion(
     retriever_outputs: list[list[Document]],
     k: int = 60,
 ) -> list[Document]:
@@ -38,7 +39,7 @@ def reciprocal_rank_fusion(
     return [loads(doc_str) for doc_str, _ in ranked]
 
 
-def create_hybrid_retriever() -> RetrieverLike:
+def _create_hybrid_retriever() -> RetrieverLike:
     embedding = OpenAIEmbeddings(model="text-embedding-3-small")
     vector_store = Chroma(
         embedding_function=embedding,
@@ -68,7 +69,7 @@ def create_hybrid_retriever() -> RetrieverLike:
             }
         ).with_types(input_type=str)
         | (lambda x: [x["chroma_documents"], x["bm25_documents"]])
-        | reciprocal_rank_fusion
+        | _reciprocal_rank_fusion
     )
 
 
@@ -83,11 +84,10 @@ _prompt_template = '''
 '''
 
 
-def create_hybrid_rag_chain() -> Runnable[str, dict[str, Any]]:
-    retriever = create_hybrid_retriever()
+def create_hybrid_rag_chain(model: BaseChatModel) -> Runnable[str, dict[str, Any]]:
+    retriever = _create_hybrid_retriever()
 
     prompt = ChatPromptTemplate.from_template(_prompt_template)
-    model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
 
     return RunnableParallel(
         {

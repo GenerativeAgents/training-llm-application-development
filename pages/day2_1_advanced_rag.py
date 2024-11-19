@@ -1,5 +1,6 @@
 import streamlit as st
 from dotenv import load_dotenv
+from langchain_openai import ChatOpenAI
 
 from app.rag.factory import RAGChainType, create_rag_chain
 
@@ -8,6 +9,10 @@ def app() -> None:
     load_dotenv(override=True)
 
     with st.sidebar:
+        model_name = st.selectbox(label="モデル", options=["gpt-4o-mini", "gpt-4o"])
+        temperature = st.slider(
+            label="temperature", min_value=0.0, max_value=1.0, value=0.0
+        )
         rag_chain_type = st.selectbox(label="RAG Chain Type", options=RAGChainType)
 
     st.title("Advanced RAG")
@@ -18,7 +23,8 @@ def app() -> None:
         return
 
     # 回答を生成して表示
-    chain = create_rag_chain(rag_chain_type=rag_chain_type)
+    model = ChatOpenAI(model=model_name, temperature=temperature)
+    chain = create_rag_chain(rag_chain_type=rag_chain_type, model=model)
 
     context_start = False
     answer_start = False
