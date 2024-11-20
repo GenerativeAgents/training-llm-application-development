@@ -7,7 +7,7 @@ requires-python = ">=3.10"
 dependencies = [
     "langchain-chroma==0.1.4",
     "langchain-cohere==0.3.0",
-    "langchain-community==0.3.0",
+    "langchain-community==0.3.7",
     "langchain-core==0.3.0",
     "langchain-openai==0.2.0",
     "langchain-text-splitters==0.3.0",
