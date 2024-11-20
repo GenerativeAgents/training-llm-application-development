@@ -2,7 +2,7 @@
 
 ハンズオン環境の構築手順です。
 
-AWS Cloud9 (Amazon Linux 2023) を想定しています。
+WSL 2 (Ubuntu) または AWS Cloud9 (Amazon Linux 2023) を想定しています。
 
 ## Python プロジェクトの初期設定
 
@@ -47,17 +47,17 @@ uv run python --version
 以下のコマンドで、作業用のディレクトリを作成してください。
 
 ```console
-mkdir langchain-basics
+mkdir training-llm-app
 ```
 
 以下のコマンドで、作業用のディレクトリに移動してください。
 
 ```console
-cd langchain-basics
+cd training-llm-app
 ```
 
 > [!NOTE]
-> 以後のコマンドはすべて langchain-basics ディレクトリで実行します。
+> 以後のコマンドはすべて training-llm-app ディレクトリで実行します。
 
 ### プロジェクト初期化
 
@@ -79,18 +79,18 @@ uv run python hello.py
 
 ### .env ファイルの記述
 
-langchain-basics ディレクトリに .env という名前のファイルを作成してください。
+training-llm-app ディレクトリに .env という名前のファイルを作成してください。
 
 [.env.template](../.env.template) の内容をコピーして .env ファイルに貼り付けてください。
 
 OPENAI_API_KEY の値を記入してください。
 
 > [!NOTE]
-> LANGCHAIN_API_KEY はあとで記入するので、この時点では空のままで大丈夫です。
+> LANGCHAIN_API_KEY、COHERE_API_KEY、TAVILY_API_KEY はあとで記入するので、この時点では空のままで大丈夫です。
 
 ### .gitignore ファイルの作成
 
-.env ファイルを誤って GitHub に公開したりすることが内容、.gitignore ファイルを作成します。
+.env ファイルを誤って GitHub に公開したりすることがないよう、.gitignore ファイルを作成します。
 以下のコマンドを実行してください。
 
 ```console
@@ -109,40 +109,33 @@ git clone --depth 1 https://github.com/langchain-ai/langchain.git ./tmp/langchai
 
 ### 使用するパッケージのインストール
 
-以下のコマンドを実行して、l 講座内で使用するパッケージをインストールしてください。
+このリポジトリの [pyproject.toml](../pyproject.toml) をコピーして、`uv init` で生成された pyprojec.toml ファイルを上書きしてください。
+
+以下のコマンドを実行して、講座内で使用するパッケージをインストールしてください。
 
 ```console
-uv add \
-  python-dotenv==1.0.1 \
-  openai==1.40.6 \
-  langchain-core==0.2.30 \
-  langchain-openai==0.1.21 \
-  langchain-community==0.2.12 \
-  langchain-text-splitters==0.2.2 \
-  langchain-chroma==0.1.2 \
-  streamlit==1.38.0 \
-  protobuf==3.20.3
+uv sync
 ```
 
 ## Jupyter の準備
-
-### Jupyter のインストール
-
-ハンズオンで Jupyter を使用するため、以下のコマンドでインストールしてください。
-
-```console
-uv add --dev jupyter==1.1.1
-```
 
 ### Jupyter の起動
 
 以下のコマンドで Jupyter を起動することができます。
 
 ```console
-uv run jupyter notebook --ip 0.0.0.0 --port 8080 --no-browser
+uv run jupyter notebook --port 8080
 ```
 
-### Jupyter への接続
+<details>
+
+<summary>AWS Cloud9 の場合</summary>
+
+AWS Cloud9 の場合は、上記のコマンドの代わりに以下のコマンドを実行してください。
+
+```console
+uv run jupyter notebook --ip 0.0.0.0 --port 8080 --no-browser
+```
 
 Cloud9 上部の「Preview」>「Preview Running Application」をクリックしてください。
 
@@ -154,21 +147,21 @@ Cloud9 の画面内のプレビューではうまく表示されないのは想�
 
 プレビューの右上のアイコン (Pop Out Into New Window) をクリックすると、ブラウザの別のタブでアクセスできます。
 
-![](./images/jupyter_auth.png)
-
-Jupyter のトークンを入力するよう求められるので、ターミナル上に表示されているトークンをコピーしてログインしてください。
-
-![](./images/jupyter_home.png)
+</details>
 
 ### Jupyter の動作確認
 
-Jupyter の画面右上あたりの「New」>「New Folder」で「chapter01」というフォルダを作成します。
+![](./images/jupyter_auth.png)
+
+Jupyter のトークンを入力するよう求められた場合、ターミナル上に表示されているトークンをコピーしてログインしてください。
+
+![](./images/jupyter_home.png)
+
+Jupyter の画面右上あたりの「New」>「New Folder」で「notebooks」というフォルダを作成します。
 
 ![](./images/jupyter_new_folder.png)
 
-![](./images/jupyter_chapter01.png)
-
-chapter01 フォルダに移動して、Notebook を作成し、以下の 2 つが想定通り動作するか確認確認してください。
+notebooks フォルダに移動して、Notebook を作成し、以下の 2 つが想定通り動作するか確認確認してください。
 
 ```
 !python --version
