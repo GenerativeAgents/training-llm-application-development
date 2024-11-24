@@ -1,6 +1,9 @@
 """
 以下のソースコードと同じ内容です。
 https://github.com/GenerativeAgents/agent-book/blob/main/chapter10/documentation_agent/main.py
+
+実行例:
+uv run python -m app.documentation_agent.agent --task "スマートフォン向けの健康管理アプリを開発したい"
 """
 
 import operator
