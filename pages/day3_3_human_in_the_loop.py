@@ -26,18 +26,28 @@ class Agent:
         graph_builder = StateGraph(State)
         graph_builder.add_node("llm_node", self._llm_node)
         graph_builder.add_node("tool_node", ToolNode(self.tools))
+        graph_builder.add_node("human_review_node", self._human_review_node)
         graph_builder.add_conditional_edges(
             "llm_node",
             self._is_tool_use,
             {
-                True: "tool_node",
+                True: "human_review_node",
                 False: END,
+            },
+        )
+        graph_builder.add_conditional_edges(
+            "human_review_node",
+            self._is_human_approved,
+            {
+                True: "tool_node",
+                False: "llm_node",
             },
         )
         graph_builder.add_edge("tool_node", "llm_node")
         graph_builder.add_edge(START, "llm_node")
         self.graph = graph_builder.compile(
             checkpointer=checkpointer,
+            interrupt_before=["human_review_node"],
         )
 
     def _llm_node(self, state: State) -> dict[str, Any]:
@@ -45,11 +55,20 @@ class Agent:
         ai_message = llm_with_tools.invoke(state["messages"])
         return {"messages": [ai_message]}
 
+    def _human_review_node(self, state: dict) -> None:
+        pass
+
     def _is_tool_use(self, state: State) -> bool:
         last_message = state["messages"][-1]
         return hasattr(last_message, "tool_calls") and len(last_message.tool_calls) > 0
 
-    def handle_human_message(self, human_message: str, thread_id: str):
+    def _is_human_approved(self, state: State) -> bool:
+        # 最後のメッセージがHumanMessageの場合は承認されずに追加の入力があったということなので、
+        # 最後のメッセージがAIMessageの場合は承認されたとみなすことができる
+        last_message = state["messages"][-1]
+        return isinstance(last_message, AIMessage)
+
+    def handle_human_message(self, human_message: str, thread_id: str) -> None:
         config = {"configurable": {"thread_id": thread_id}}
         self.graph.invoke(
             input={"messages": [HumanMessage(content=human_message)]},
@@ -58,12 +77,22 @@ class Agent:
 
     def get_messages(self, thread_id: str) -> list[BaseMessage]:
         config = {"configurable": {"thread_id": thread_id}}
-        state = self.graph.get_state(config=config)
+        state_snapshot = self.graph.get_state(config=config)
 
-        if "messages" in state.values:
-            return state.values["messages"]
+        if "messages" in state_snapshot.values:
+            return state_snapshot.values["messages"]
         else:
             return []
+
+    def handle_approve(self, thread_id: str) -> None:
+        config = {"configurable": {"thread_id": thread_id}}
+        self.graph.invoke(input=None, config=config)
+
+    def is_next_human_review_node(self, thread_id: str) -> bool:
+        config = {"configurable": {"thread_id": thread_id}}
+        state_snapshot = self.graph.get_state(config=config)
+        graph_next = state_snapshot.next
+        return len(graph_next) != 0 and graph_next[0] == "human_review_node"
 
     def mermaid_png(self) -> bytes:
         return self.graph.get_graph().draw_mermaid_png()
@@ -126,6 +155,16 @@ def app() -> None:
     # 会話履歴を表示
     messages = agent.get_messages(thread_id)
     show_messages(messages)
+
+    # 次がhuman_review_nodeの場合は承認ボタンを表示
+    if agent.is_next_human_review_node(thread_id):
+        approved = st.button("承認")
+        # 承認されたらエージェントを実行
+        if approved:
+            with st.spinner():
+                agent.handle_approve(thread_id)
+            # 会話履歴を表示するためrerun
+            st.rerun()
 
 
 app()
