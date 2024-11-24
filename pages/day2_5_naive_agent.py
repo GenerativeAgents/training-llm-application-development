@@ -1,7 +1,6 @@
 import streamlit as st
 from dotenv import load_dotenv
 from langchain_chroma import Chroma
-from langchain_community.tools import ShellTool
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
 from langchain_core.tools import create_retriever_tool
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
@@ -21,7 +20,7 @@ def create_agent_chain(model_name: str) -> CompiledGraph:
         name="langchain-retriever",
         description="Retriever for langchain documents",
     )
-    tools = [retriever_tool, ShellTool()]
+    tools = [retriever_tool]
 
     model = ChatOpenAI(model=model_name, temperature=0)
 
