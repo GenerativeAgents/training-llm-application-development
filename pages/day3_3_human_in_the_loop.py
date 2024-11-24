@@ -69,6 +69,24 @@ class Agent:
         return isinstance(last_message, AIMessage)
 
     def handle_human_message(self, human_message: str, thread_id: str) -> None:
+        # 承認待ちの状態でhuman_messageが送信されるのは、ツールの呼び出しを修正したい状況のため、
+        # 次がhuman_review_nodeの場合、ツールの呼び出しが失敗したことをStateに追加
+        # 参考: https://langchain-ai.github.io/langgraph/how-tos/human_in_the_loop/review-tool-calls/#give-feedback-to-a-tool-call
+        if self.is_next_human_review_node(thread_id):
+            last_message = self.get_messages(thread_id)[-1]
+            tool_reject_message = ToolMessage(
+                content="Tool call rejected",
+                status="error",
+                name=last_message.tool_calls[0]["name"],
+                tool_call_id=last_message.tool_calls[0]["id"],
+            )
+            config = {"configurable": {"thread_id": thread_id}}
+            self.graph.update_state(
+                config=config,
+                values={"messages": [tool_reject_message]},
+                as_node="human_review_node",
+            )
+
         config = {"configurable": {"thread_id": thread_id}}
         self.graph.invoke(
             input={"messages": [HumanMessage(content=human_message)]},
