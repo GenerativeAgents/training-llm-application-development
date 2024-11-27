@@ -2,7 +2,7 @@ import streamlit as st
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 
-from app.rag.factory import RAGChainType, create_rag_chain
+from app.rag.factory import chain_constructor_by_name, create_rag_chain
 
 
 def app() -> None:
@@ -13,7 +13,10 @@ def app() -> None:
         temperature = st.slider(
             label="temperature", min_value=0.0, max_value=1.0, value=0.0
         )
-        rag_chain_type = st.selectbox(label="RAG Chain Type", options=RAGChainType)
+        chain_name = st.selectbox(
+            label="RAG Chain Type",
+            options=chain_constructor_by_name.keys(),
+        )
 
     st.title("Advanced RAG")
 
@@ -24,7 +27,7 @@ def app() -> None:
 
     # 回答を生成して表示
     model = ChatOpenAI(model=model_name, temperature=temperature)
-    chain = create_rag_chain(rag_chain_type=rag_chain_type, model=model)
+    chain = create_rag_chain(chain_name=chain_name, model=model)
 
     context_start = False
     answer_start = False
