@@ -64,13 +64,10 @@ def app() -> None:
         chain = create_rag_chain(chain_name=chain_name, model=model)
 
         with collect_runs() as cb:
-            context_start = False
             answer_start = False
             answer = ""
             for chunk in chain.stream(question):
                 if "context" in chunk:
-                    if not context_start:
-                        context_start = True
                     context = chunk["context"]
                     show_context(context)
                     st.session_state.state.context = context

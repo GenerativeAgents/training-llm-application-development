@@ -29,15 +29,11 @@ def app() -> None:
     model = ChatOpenAI(model=model_name, temperature=temperature)
     chain = create_rag_chain(chain_name=chain_name, model=model)
 
-    context_start = False
     answer_start = False
     answer = ""
     for chunk in chain.stream(question):
         if "context" in chunk:
-            if not context_start:
-                context_start = True
-                st.write("### 検索結果")
-
+            st.write("### 検索結果")
             for doc in chunk["context"]:
                 source = doc.metadata["source"]
                 content = doc.page_content
