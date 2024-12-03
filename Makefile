@@ -1,9 +1,13 @@
-.PHONY: notebook
-notebook:
+.PHONY: jupyter
+jupyter:
 	uv run jupyter notebook --port 8080 --no-browser
 
-.PHONY: run
-run:
+.PHONY: cloud9_jupyter
+cloud9_jupyter:
+	uv run jupyter notebook --ip 0.0.0.0 --port 8080 --no-browser
+
+.PHONY: streamlit
+streamlit:
 	uv run streamlit run app.py --server.port 8080
 
 IPYNBS = $(shell ls notebooks/*.ipynb)
