@@ -8,6 +8,7 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from langgraph.graph import END, StateGraph
+from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import create_react_agent
 from passive_goal_creator.main import Goal, PassiveGoalCreator
 from prompt_optimizer.main import OptimizedGoal, PromptOptimizer
@@ -208,7 +209,7 @@ class ReflectiveAgent:
         self.max_retries = max_retries
         self.graph = self._create_graph()
 
-    def _create_graph(self) -> StateGraph:
+    def _create_graph(self) -> CompiledStateGraph:
         graph = StateGraph(ReflectiveAgentState)
         graph.add_node("goal_setting", self._goal_setting)
         graph.add_node("decompose_query", self._decompose_query)

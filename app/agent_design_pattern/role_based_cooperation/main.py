@@ -2,11 +2,11 @@ import operator
 from typing import Annotated, Any
 
 from langchain_community.tools.tavily_search import TavilySearchResults
-from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from langgraph.graph import END, StateGraph
+from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import create_react_agent
 from pydantic import BaseModel, Field
 from single_path_plan_generation.main import DecomposedTasks, QueryDecomposer
@@ -161,7 +161,7 @@ class RoleBasedCooperation:
         self.reporter = Reporter(llm=llm)
         self.graph = self._create_graph()
 
-    def _create_graph(self) -> StateGraph:
+    def _create_graph(self) -> CompiledStateGraph:
         workflow = StateGraph(AgentState)
 
         workflow.add_node("planner", self._plan_tasks)
