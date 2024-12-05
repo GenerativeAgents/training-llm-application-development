@@ -19,7 +19,7 @@ class Rerank:
         documents = inputs["documents"]
 
         cohere_reranker = CohereRerank(
-            model="rerank-multilingual-v3.0",
+            model="rerank-v3.5",
             top_n=self.top_n,
         )
         return cohere_reranker.compress_documents(documents=documents, query=question)
