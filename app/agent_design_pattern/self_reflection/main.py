@@ -120,10 +120,13 @@ class TaskExecutor:
         self.current_date = datetime.now().strftime("%Y-%m-%d")
         self.tools = [TavilySearchResults(max_results=3)]
 
-    def run(self, task: str) -> str:
+    def run(self, task: str, results: list[str]) -> str:
         relevant_reflections = self.reflection_manager.get_relevant_reflections(task)
         reflection_text = format_reflections(relevant_reflections)
         agent = create_react_agent(self.llm, self.tools)
+        results_str = "\n\n".join(
+            f"Info {i+1}:\n{result}" for i, result in enumerate(results)
+        )
         result = agent.invoke(
             {
                 "messages": [
@@ -137,7 +140,8 @@ class TaskExecutor:
                         "2. 実行において徹底的かつ包括的であること。\n"
                         "3. 可能な限り具体的な事実やデータを提供すること。\n"
                         "4. 発見事項を明確に要約すること。\n"
-                        f"5. 以下の過去のふりかえりを考慮すること:\n{reflection_text}\n",
+                        f"5. 以下の過去のふりかえりを考慮すること:\n{reflection_text}\n\n"
+                        f"ここまでのタスクの実行結果:\n{results_str}",
                     )
                 ]
             }
@@ -250,7 +254,7 @@ class ReflectiveAgent:
 
     def _execute_task(self, state: ReflectiveAgentState) -> dict[str, Any]:
         current_task = state.tasks[state.current_task_index]
-        result = self.task_executor.run(task=current_task)
+        result = self.task_executor.run(task=current_task, results=state.results)
         return {"results": [result], "current_task_index": state.current_task_index}
 
     def _reflect_on_task(self, state: ReflectiveAgentState) -> dict[str, Any]:

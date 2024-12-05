@@ -88,7 +88,10 @@ class Executor:
         self.tools = [TavilySearchResults(max_results=3)]
         self.base_agent = create_react_agent(self.llm, self.tools)
 
-    def run(self, task: Task) -> str:
+    def run(self, task: Task, results: list[str]) -> str:
+        results_str = "\n\n".join(
+            f"Info {i+1}:\n{result}" for i, result in enumerate(results)
+        )
         result = self.base_agent.invoke(
             {
                 "messages": [
@@ -103,7 +106,8 @@ class Executor:
                     ),
                     (
                         "human",
-                        f"以下のタスクを実行してください：\n\n{task.description}",
+                        f"以下のタスクを実行してください：\n\n{task.description}\n\n"
+                        f"ここまでのタスクの実行結果:\n{results_str}",
                     ),
                 ]
             }
@@ -193,7 +197,7 @@ class RoleBasedCooperation:
 
     def _execute_task(self, state: AgentState) -> dict[str, Any]:
         current_task = state.tasks[state.current_task_index]
-        result = self.executor.run(task=current_task)
+        result = self.executor.run(task=current_task, results=state.results)
         return {
             "results": [result],
             "current_task_index": state.current_task_index + 1,

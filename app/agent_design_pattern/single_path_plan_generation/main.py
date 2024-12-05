@@ -65,8 +65,11 @@ class TaskExecutor:
         self.llm = llm
         self.tools = [TavilySearchResults(max_results=3)]
 
-    def run(self, task: str) -> str:
+    def run(self, task: str, results: list[str]) -> str:
         agent = create_react_agent(self.llm, self.tools)
+        results_str = "\n\n".join(
+            f"Info {i+1}:\n{result}" for i, result in enumerate(results)
+        )
         result = agent.invoke(
             {
                 "messages": [
@@ -79,7 +82,8 @@ class TaskExecutor:
                             "1. 必要に応じて提供されたツールを使用してください。\n"
                             "2. 実行は徹底的かつ包括的に行ってください。\n"
                             "3. 可能な限り具体的な事実やデータを提供してください。\n"
-                            "4. 発見した内容を明確に要約してください。\n"
+                            "4. 発見した内容を明確に要約してください。\n\n"
+                            f"ここまでのタスクの実行結果:\n{results_str}"
                         ),
                     )
                 ]
@@ -158,7 +162,7 @@ class SinglePathPlanGeneration:
 
     def _execute_task(self, state: SinglePathPlanGenerationState) -> dict[str, Any]:
         current_task = state.tasks[state.current_task_index]
-        result = self.task_executor.run(task=current_task)
+        result = self.task_executor.run(task=current_task, results=state.results)
         return {
             "results": [result],
             "current_task_index": state.current_task_index + 1,
