@@ -28,10 +28,8 @@ def format_reflections(reflections: list[Reflection]) -> str:
 
 
 class DecomposedTasks(BaseModel):
-    values: list[str] = Field(
+    tasks: list[str] = Field(
         default_factory=list,
-        min_items=3,
-        max_items=5,
         description="3~5個に分解されたタスク",
     )
 
@@ -125,7 +123,7 @@ class TaskExecutor:
         reflection_text = format_reflections(relevant_reflections)
         agent = create_react_agent(self.llm, self.tools)
         results_str = "\n\n".join(
-            f"Info {i+1}:\n{result}" for i, result in enumerate(results)
+            f"Info {i + 1}:\n{result}" for i, result in enumerate(results)
         )
         result = agent.invoke(
             {
@@ -177,7 +175,7 @@ class ResultAggregator:
             {
                 "query": query,
                 "results": "\n\n".join(
-                    f"Info {i+1}:\n{result}" for i, result in enumerate(results)
+                    f"Info {i + 1}:\n{result}" for i, result in enumerate(results)
                 ),
                 "response_definition": response_definition,
                 "reflection_text": format_reflections(relevant_reflections),
@@ -250,7 +248,7 @@ class ReflectiveAgent:
 
     def _decompose_query(self, state: ReflectiveAgentState) -> dict[str, Any]:
         tasks: DecomposedTasks = self.query_decomposer.run(query=state.optimized_goal)
-        return {"tasks": tasks.values}
+        return {"tasks": tasks.tasks}
 
     def _execute_task(self, state: ReflectiveAgentState) -> dict[str, Any]:
         current_task = state.tasks[state.current_task_index]

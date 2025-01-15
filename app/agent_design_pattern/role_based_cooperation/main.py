@@ -20,7 +20,7 @@ class Role(BaseModel):
 
 class Task(BaseModel):
     description: str = Field(..., description="タスクの説明")
-    role: Role = Field(default=None, description="タスクに割り当てられた役割")
+    role: Role | None = Field(..., description="タスクに割り当てられた役割")
 
 
 class TasksWithRoles(BaseModel):
@@ -45,7 +45,7 @@ class Planner:
 
     def run(self, query: str) -> list[Task]:
         decomposed_tasks: DecomposedTasks = self.query_decomposer.run(query=query)
-        return [Task(description=task) for task in decomposed_tasks.values]
+        return [Task(description=task, role=None) for task in decomposed_tasks.tasks]
 
 
 class RoleAssigner:
@@ -90,7 +90,7 @@ class Executor:
 
     def run(self, task: Task, results: list[str]) -> str:
         results_str = "\n\n".join(
-            f"Info {i+1}:\n{result}" for i, result in enumerate(results)
+            f"Info {i + 1}:\n{result}" for i, result in enumerate(results)
         )
         result = self.base_agent.invoke(
             {
@@ -150,7 +150,7 @@ class Reporter:
             {
                 "query": query,
                 "results": "\n\n".join(
-                    f"Info {i+1}:\n{result}" for i, result in enumerate(results)
+                    f"Info {i + 1}:\n{result}" for i, result in enumerate(results)
                 ),
             }
         )
