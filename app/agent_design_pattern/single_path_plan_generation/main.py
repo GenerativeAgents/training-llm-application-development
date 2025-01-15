@@ -16,10 +16,8 @@ from response_optimizer.main import ResponseOptimizer
 
 
 class DecomposedTasks(BaseModel):
-    values: list[str] = Field(
+    tasks: list[str] = Field(
         default_factory=list,
-        min_items=3,
-        max_items=5,
         description="3~5個に分解されたタスク",
     )
 
@@ -68,7 +66,7 @@ class TaskExecutor:
     def run(self, task: str, results: list[str]) -> str:
         agent = create_react_agent(self.llm, self.tools)
         results_str = "\n\n".join(
-            f"Info {i+1}:\n{result}" for i, result in enumerate(results)
+            f"Info {i + 1}:\n{result}" for i, result in enumerate(results)
         )
         result = agent.invoke(
             {
@@ -104,7 +102,7 @@ class ResultAggregator:
             "{response_definition}"
         )
         results_str = "\n\n".join(
-            f"Info {i+1}:\n{result}" for i, result in enumerate(results)
+            f"Info {i + 1}:\n{result}" for i, result in enumerate(results)
         )
         chain = prompt | self.llm | StrOutputParser()
         return chain.invoke(
@@ -158,7 +156,7 @@ class SinglePathPlanGeneration:
         decomposed_tasks: DecomposedTasks = self.query_decomposer.run(
             query=state.optimized_goal
         )
-        return {"tasks": decomposed_tasks.values}
+        return {"tasks": decomposed_tasks.tasks}
 
     def _execute_task(self, state: SinglePathPlanGenerationState) -> dict[str, Any]:
         current_task = state.tasks[state.current_task_index]

@@ -41,7 +41,7 @@ def app() -> None:
         OpenAIEmbeddings(model="text-embedding-3-small")
     )
 
-    generator = TestsetGenerator(llm=llm)
+    generator = TestsetGenerator(llm=llm, embedding_model=embeddings)
 
     with st.spinner("Generating testset..."):
         start_time = time.time()
@@ -49,7 +49,6 @@ def app() -> None:
         testset = generator.generate_with_langchain_docs(
             documents,
             testset_size=testset_size,
-            transforms_embedding_model=embeddings,
         )
 
         end_time = time.time()
