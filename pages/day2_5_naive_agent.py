@@ -7,6 +7,17 @@ from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langgraph.graph.graph import CompiledGraph
 from langgraph.prebuilt import create_react_agent
 
+# from langchain_community.tools import ShellTool
+# from langchain_core.tools import tool
+
+# @tool
+# def turn_light(on: bool) -> str:
+#     """部屋の電気をON/OFFするツールです"""
+#     if on:
+#         return "電気をつけました"
+#     else:
+#         return "電気を消しました"
+
 
 def create_agent_chain(model_name: str) -> CompiledGraph:
     embedding = OpenAIEmbeddings(model="text-embedding-3-small")
@@ -20,7 +31,11 @@ def create_agent_chain(model_name: str) -> CompiledGraph:
         name="langchain-retriever",
         description="Retriever for langchain documents",
     )
-    tools = [retriever_tool]
+    tools = [
+        retriever_tool,
+        # ShellTool(),
+        # turn_light,
+    ]
 
     model = ChatOpenAI(model=model_name, temperature=0)
 
