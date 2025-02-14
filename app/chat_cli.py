@@ -28,7 +28,7 @@ def main() -> None:
 
     # 会話履歴を初期化
     messages: list[ChatCompletionMessageParam] = [
-        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "developer", "content": "You are a helpful assistant."},
     ]
 
     while True:
