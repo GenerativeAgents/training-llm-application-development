@@ -7,7 +7,7 @@ from langsmith import Client
 from pydantic import BaseModel
 from streamlit_feedback import streamlit_feedback  # type: ignore[import-untyped]
 
-from app.rag.factory import chain_constructor_by_name, create_rag_chain
+from app.advanced_rag.factory import chain_constructor_by_name, create_rag_chain
 
 
 class SessionState(BaseModel):

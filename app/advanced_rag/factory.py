@@ -3,13 +3,13 @@ from typing import Any, Callable
 from langchain_core.language_models import BaseChatModel
 from langchain_core.runnables import Runnable
 
-from app.rag.chains.hybrid import create_hybrid_rag_chain
-from app.rag.chains.hyde import create_hyde_rag_chain
-from app.rag.chains.multi_query import create_multi_query_rag_chain
-from app.rag.chains.naive import create_naive_rag_chain
-from app.rag.chains.rag_fusion import create_rag_fusion_chain
-from app.rag.chains.rerank import create_rerank_rag_chain
-from app.rag.chains.route import create_route_rag_chain
+from app.advanced_rag.chains.hybrid import create_hybrid_rag_chain
+from app.advanced_rag.chains.hyde import create_hyde_rag_chain
+from app.advanced_rag.chains.multi_query import create_multi_query_rag_chain
+from app.advanced_rag.chains.naive import create_naive_rag_chain
+from app.advanced_rag.chains.rag_fusion import create_rag_fusion_chain
+from app.advanced_rag.chains.rerank import create_rerank_rag_chain
+from app.advanced_rag.chains.route import create_route_rag_chain
 
 ChainConstructorType = Callable[[BaseChatModel], Runnable[str, dict[str, Any]]]
 
