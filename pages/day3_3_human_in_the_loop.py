@@ -1,4 +1,5 @@
-from typing import Annotated, Any
+from enum import Enum
+from typing import Annotated, Any, Literal
 from uuid import uuid4
 
 import streamlit as st
@@ -11,7 +12,13 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode
+from langgraph.types import Command, RunnableConfig, interrupt
 from typing_extensions import TypedDict
+
+
+class HumanReview(Enum):
+    APPROVE = "approve"
+    REJECT = "reject"
 
 
 class State(TypedDict):
@@ -24,9 +31,12 @@ class Agent:
         self.tools = [TavilySearchResults()]
 
         graph_builder = StateGraph(State)
+
         graph_builder.add_node("llm_node", self._llm_node)
         graph_builder.add_node("tool_node", ToolNode(self.tools))
         graph_builder.add_node("human_review_node", self._human_review_node)
+
+        graph_builder.add_edge(START, "llm_node")
         graph_builder.add_conditional_edges(
             "llm_node",
             self._is_tool_use,
@@ -35,19 +45,10 @@ class Agent:
                 False: END,
             },
         )
-        graph_builder.add_conditional_edges(
-            "human_review_node",
-            self._is_human_approved,
-            {
-                True: "tool_node",
-                False: "llm_node",
-            },
-        )
         graph_builder.add_edge("tool_node", "llm_node")
-        graph_builder.add_edge(START, "llm_node")
+
         self.graph = graph_builder.compile(
             checkpointer=checkpointer,
-            interrupt_before=["human_review_node"],
         )
 
     def _llm_node(self, state: State) -> dict[str, Any]:
@@ -55,43 +56,43 @@ class Agent:
         ai_message = llm_with_tools.invoke(state["messages"])
         return {"messages": [ai_message]}
 
-    def _human_review_node(self, state: dict) -> None:
-        pass
+    def _human_review_node(
+        self, state: dict, config: RunnableConfig
+    ) -> Command[Literal["tool_node", "llm_node"]]:
+        human_review = interrupt({})
 
-    def _is_tool_use(self, state: State) -> bool:
-        last_message = state["messages"][-1]
-        return hasattr(last_message, "tool_calls") and len(last_message.tool_calls) > 0
-
-    def _is_human_approved(self, state: State) -> bool:
-        # 最後のメッセージがHumanMessageの場合は承認されずに追加の入力があったということなので、
-        # 最後のメッセージがAIMessageの場合は承認されたとみなすことができる
-        last_message = state["messages"][-1]
-        return isinstance(last_message, AIMessage)
-
-    def handle_human_message(self, human_message: str, thread_id: str) -> None:
-        # 承認待ちの状態でhuman_messageが送信されるのは、ツールの呼び出しを修正したい状況のため、
-        # 次がhuman_review_nodeの場合、ツールの呼び出しが失敗したことをStateに追加
-        # 参考: https://langchain-ai.github.io/langgraph/how-tos/human_in_the_loop/review-tool-calls/#give-feedback-to-a-tool-call
-        if self.is_next_human_review_node(thread_id):
-            last_message = self.get_messages(thread_id)[-1]
+        if human_review == HumanReview.APPROVE:
+            return Command(goto="tool_node")
+        elif human_review == HumanReview.REJECT:
+            # ツールの呼び出しが失敗したことをStateに追加
+            last_message = state["messages"][-1]
             tool_reject_message = ToolMessage(
                 content="Tool call rejected",
                 status="error",
                 name=last_message.tool_calls[0]["name"],
                 tool_call_id=last_message.tool_calls[0]["id"],
             )
-            config = {"configurable": {"thread_id": thread_id}}
-            self.graph.update_state(
-                config=config,
-                values={"messages": [tool_reject_message]},
-                as_node="human_review_node",
-            )
+            return Command(goto="llm_node", update={"messages": [tool_reject_message]})
+        else:
+            raise ValueError(f"Unknown human review: {human_review}")
 
+    def _is_tool_use(self, state: State) -> bool:
+        last_message = state["messages"][-1]
+        return hasattr(last_message, "tool_calls") and len(last_message.tool_calls) > 0
+
+    def handle_human_message(self, human_message: str, thread_id: str) -> None:
         config = {"configurable": {"thread_id": thread_id}}
-        self.graph.invoke(
-            input={"messages": [HumanMessage(content=human_message)]},
-            config=config,
-        )
+
+        if self.is_next_human_review_node(thread_id):
+            self.graph.invoke(
+                Command(resume=HumanReview.REJECT),
+                config=config,
+            )
+        else:
+            self.graph.invoke(
+                input={"messages": [HumanMessage(content=human_message)]},
+                config=config,
+            )
 
     def get_messages(self, thread_id: str) -> list[BaseMessage]:
         config = {"configurable": {"thread_id": thread_id}}
@@ -104,7 +105,7 @@ class Agent:
 
     def handle_approve(self, thread_id: str) -> None:
         config = {"configurable": {"thread_id": thread_id}}
-        self.graph.invoke(input=None, config=config)
+        self.graph.invoke(Command(resume=HumanReview.APPROVE), config=config)
 
     def is_next_human_review_node(self, thread_id: str) -> bool:
         config = {"configurable": {"thread_id": thread_id}}
