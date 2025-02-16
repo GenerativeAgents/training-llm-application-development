@@ -1,4 +1,3 @@
-from enum import Enum
 from typing import Annotated, Any, Literal
 from uuid import uuid4
 
@@ -13,12 +12,16 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode
 from langgraph.types import Command, RunnableConfig, interrupt
+from pydantic import BaseModel
 from typing_extensions import TypedDict
 
 
-class HumanReview(Enum):
-    APPROVE = "approve"
-    REJECT = "reject"
+class HumanReviewApprove(BaseModel):
+    pass
+
+
+class HumanReviewFeedback(BaseModel):
+    feedback: str
 
 
 class State(TypedDict):
@@ -59,11 +62,11 @@ class Agent:
     def _human_review_node(
         self, state: dict, config: RunnableConfig
     ) -> Command[Literal["tool_node", "llm_node"]]:
-        human_review = interrupt({})
+        human_review = interrupt(None)
 
-        if human_review == HumanReview.APPROVE:
+        if isinstance(human_review, HumanReviewApprove):
             return Command(goto="tool_node")
-        elif human_review == HumanReview.REJECT:
+        elif isinstance(human_review, HumanReviewFeedback):
             # ツールの呼び出しが失敗したことをStateに追加
             last_message = state["messages"][-1]
             tool_reject_message = ToolMessage(
@@ -72,7 +75,10 @@ class Agent:
                 name=last_message.tool_calls[0]["name"],
                 tool_call_id=last_message.tool_calls[0]["id"],
             )
-            return Command(goto="llm_node", update={"messages": [tool_reject_message]})
+            return Command(
+                goto="llm_node",
+                update={"messages": [tool_reject_message, human_review.feedback]},
+            )
         else:
             raise ValueError(f"Unknown human review: {human_review}")
 
@@ -85,7 +91,7 @@ class Agent:
 
         if self.is_next_human_review_node(thread_id):
             self.graph.invoke(
-                Command(resume=HumanReview.REJECT),
+                Command(resume=HumanReviewFeedback(feedback=human_message)),
                 config=config,
             )
         else:
@@ -105,7 +111,7 @@ class Agent:
 
     def handle_approve(self, thread_id: str) -> None:
         config = {"configurable": {"thread_id": thread_id}}
-        self.graph.invoke(Command(resume=HumanReview.APPROVE), config=config)
+        self.graph.invoke(Command(resume=HumanReviewApprove()), config=config)
 
     def is_next_human_review_node(self, thread_id: str) -> bool:
         config = {"configurable": {"thread_id": thread_id}}
