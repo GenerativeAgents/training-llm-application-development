@@ -10,6 +10,10 @@ cloud9_jupyter:
 streamlit:
 	uv run streamlit run app.py --server.port 8080
 
+.PHONY: streamlit_stop
+streamlit_stop:
+	lsof -t -sTCP:LISTEN -iTCP:8080 | xargs kill
+
 IPYNBS = $(shell ls notebooks/*.ipynb)
 
 .PHONY: test
