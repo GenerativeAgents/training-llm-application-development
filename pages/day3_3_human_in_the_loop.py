@@ -3,6 +3,7 @@ from uuid import uuid4
 
 import streamlit as st
 from dotenv import load_dotenv
+from langchain_community.tools import ShellTool
 from langchain_community.tools.tavily_search import TavilySearchResults
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
 from langchain_openai import ChatOpenAI
@@ -31,7 +32,7 @@ class State(TypedDict):
 class Agent:
     def __init__(self, checkpointer: BaseCheckpointSaver) -> None:
         self.llm = ChatOpenAI(model="gpt-4o-mini")
-        self.tools = [TavilySearchResults()]
+        self.tools = [TavilySearchResults(), ShellTool()]
 
         graph_builder = StateGraph(State)
 
@@ -156,10 +157,10 @@ def app() -> None:
     st.title("Agent")
 
     # st.session_stateにagentを保存
-    if "agent" not in st.session_state:
+    if "human_in_the_loop_agent" not in st.session_state:
         checkpointer = MemorySaver()
-        st.session_state.agent = Agent(checkpointer=checkpointer)
-    agent = st.session_state.agent
+        st.session_state.human_in_the_loop_agent = Agent(checkpointer=checkpointer)
+    agent = st.session_state.human_in_the_loop_agent
 
     # グラフを表示
     with st.sidebar:

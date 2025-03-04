@@ -102,10 +102,10 @@ def app() -> None:
     st.title("Agent")
 
     # st.session_stateにagentを保存
-    if "agent" not in st.session_state:
+    if "checkpointer_agent" not in st.session_state:
         checkpointer = MemorySaver()
-        st.session_state.agent = Agent(checkpointer=checkpointer)
-    agent = st.session_state.agent
+        st.session_state.checkpointer_agent = Agent(checkpointer=checkpointer)
+    agent = st.session_state.checkpointer_agent
 
     # グラフを表示
     with st.sidebar:
