@@ -6,7 +6,12 @@ from langchain_core.documents import Document
 from langchain_core.language_models import BaseChatModel
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import Runnable, RunnableParallel, RunnablePassthrough
+from langchain_core.runnables import (
+    Runnable,
+    RunnableLambda,
+    RunnableParallel,
+    RunnablePassthrough,
+)
 from langchain_openai import OpenAIEmbeddings
 
 
@@ -55,6 +60,6 @@ def create_rerank_rag_chain(model: BaseChatModel) -> Runnable[str, dict[str, Any
                 "question": RunnablePassthrough(),
             }
         ).with_types(input_type=str)
-        | RunnablePassthrough.assign(context=rerank)
+        | RunnablePassthrough.assign(context=RunnableLambda(rerank, name="rerank"))
         | RunnablePassthrough.assign(answer=prompt | model | StrOutputParser())
     )
