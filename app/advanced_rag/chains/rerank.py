@@ -16,7 +16,7 @@ from langchain_openai import OpenAIEmbeddings
 
 
 class Rerank:
-    def __init__(self, top_n: int = 3):
+    def __init__(self, top_n: int = 4):
         self.top_n = top_n
 
     def __call__(self, inputs: dict[str, Any]) -> Sequence[Document]:
@@ -48,7 +48,7 @@ def create_rerank_rag_chain(model: BaseChatModel) -> Runnable[str, dict[str, Any
         persist_directory="./tmp/chroma",
     )
 
-    retriever = vector_store.as_retriever()
+    retriever = vector_store.as_retriever(search_kwargs={"k": 20})
     prompt = ChatPromptTemplate.from_template(_prompt_template)
 
     rerank = Rerank()
