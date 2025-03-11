@@ -20,6 +20,7 @@ class State(TypedDict):
 
 class Agent:
     def __init__(self, checkpointer: BaseCheckpointSaver) -> None:
+        self.checkpointer = checkpointer
         self.llm = ChatOpenAI(model="gpt-4o-mini")
         self.tools = [TavilySearchResults()]
 
@@ -126,6 +127,17 @@ def app() -> None:
     # 会話履歴を表示
     messages = agent.get_messages(thread_id)
     show_messages(messages)
+
+    with st.sidebar:
+        st.subheader("Checkpoints")
+        checkpoint_tuples = agent.checkpointer.list(
+            {"configurable": {"thread_id": thread_id}}
+        )
+
+        for checkpoint_tuple in reversed(list(checkpoint_tuples)):
+            checkpoint = checkpoint_tuple.checkpoint
+            channel_values = checkpoint["channel_values"]
+            st.write(channel_values)
 
 
 app()
