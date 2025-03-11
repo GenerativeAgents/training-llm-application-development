@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Sequence
 
 from langchain_chroma import Chroma
 from langchain_cohere import CohereRerank
@@ -14,7 +14,7 @@ class Rerank:
     def __init__(self, top_n: int = 3):
         self.top_n = top_n
 
-    def __call__(self, inputs: dict[str, Any]) -> list[Document]:
+    def __call__(self, inputs: dict[str, Any]) -> Sequence[Document]:
         question = inputs["question"]
         documents = inputs["documents"]
 
