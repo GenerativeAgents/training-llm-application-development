@@ -25,7 +25,7 @@ Windowsの場合、WSL 2でも動作する可能性が高いです。
 
 1. リポジトリのクローン
 ```console
-git clone https://github.com/yourusername/training-llm-application-development.git
+git clone https://github.com/GenerativeAgents/training-llm-application-development.git
 cd training-llm-application-development
 ```
 
