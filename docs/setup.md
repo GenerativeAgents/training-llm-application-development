@@ -47,3 +47,15 @@ make streamlit
 ```console
 uv run streamlit run app.py --server.port 8080
 ```
+
+## Pythonの開発環境に関する参考情報
+
+- Pythonの開発環境の3つの観点をおさえよう
+  - https://zenn.dev/os1ma/articles/935f6e653f1052
+  - ※このリポジトリで使用している「uv」は上記の記事のRyeのような立ち位置のツールです
+- Ruff
+  - https://docs.astral.sh/ruff/
+  - https://marketplace.visualstudio.com/items?itemName=charliermarsh.ruff
+- Mypy
+  - https://mypy-lang.org/
+  - https://marketplace.visualstudio.com/items?itemName=ms-python.mypy-type-checker
