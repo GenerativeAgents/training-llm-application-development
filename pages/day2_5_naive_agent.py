@@ -74,7 +74,9 @@ def app() -> None:
     st.title("Naive Agent")
 
     with st.sidebar:
-        model_name = st.selectbox(label="モデル", options=["gpt-4o-mini", "gpt-4o"])
+        model_name = st.selectbox(
+            label="モデル", options=["gpt-4.1-nano", "gpt-4.1-mini", "gpt-4.1"]
+        )
 
     # 会話履歴を初期化
     if "messages" not in st.session_state:

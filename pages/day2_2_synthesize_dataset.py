@@ -36,7 +36,7 @@ def app() -> None:
     # 合成テストデータの生成
     nest_asyncio.apply()
 
-    llm = LangchainLLMWrapper(ChatOpenAI(model="gpt-4o-mini"))
+    llm = LangchainLLMWrapper(ChatOpenAI(model="gpt-4.1-nano"))
     embeddings = LangchainEmbeddingsWrapper(
         OpenAIEmbeddings(model="text-embedding-3-small")
     )

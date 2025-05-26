@@ -67,7 +67,9 @@ def app() -> None:
     load_dotenv(override=True)
 
     with st.sidebar:
-        model_name = st.selectbox(label="モデル", options=["gpt-4o-mini", "gpt-4o"])
+        model_name = st.selectbox(
+            label="モデル", options=["gpt-4.1-nano", "gpt-4.1-mini", "gpt-4.1"]
+        )
         temperature = st.slider(
             label="temperature", min_value=0.0, max_value=1.0, value=0.0
         )
@@ -84,7 +86,7 @@ def app() -> None:
 
     metrics = [ContextPrecision, ResponseRelevancy]
 
-    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+    llm = ChatOpenAI(model="gpt-4.1-nano", temperature=0)
     embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
 
     evaluators = [RagasMetricEvaluator(metric, llm, embeddings) for metric in metrics]

@@ -382,7 +382,7 @@ def main():
     args = parser.parse_args()
 
     # ChatOpenAIモデルを初期化
-    llm = ChatOpenAI(model="gpt-4o", temperature=0.0)
+    llm = ChatOpenAI(model="gpt-4.1", temperature=0.0)
     # 要件定義書生成AIエージェントを初期化
     agent = DocumentationAgent(llm=llm, k=args.k)
     # エージェントを実行して最終的な出力を取得

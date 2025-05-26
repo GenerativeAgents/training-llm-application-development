@@ -21,7 +21,7 @@ class State(TypedDict):
 class Agent:
     def __init__(self, checkpointer: BaseCheckpointSaver) -> None:
         self.checkpointer = checkpointer
-        self.llm = ChatOpenAI(model="gpt-4o-mini")
+        self.llm = ChatOpenAI(model="gpt-4.1-nano")
         self.tools = [TavilySearchResults()]
 
         graph_builder = StateGraph(State)
