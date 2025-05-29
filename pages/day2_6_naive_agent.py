@@ -31,6 +31,10 @@ def create_agent_chain(model_name: str) -> CompiledGraph:
         name="langchain-retriever",
         description="Retriever for langchain documents",
     )
+    # 注意:
+    # 講座ではAIエージェントにできることを分かりやすく理解するためにShellToolを使用します。
+    # しかし、ShellToolでは予期しないコマンドを実行される可能性があります。
+    # 実際にShellToolの使用を検討する際は、AIエージェントが動作する環境などに十分な注意が必要です。
     tools = [
         retriever_tool,
         # ShellTool(),
