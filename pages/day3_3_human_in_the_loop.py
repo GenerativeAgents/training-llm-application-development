@@ -174,12 +174,6 @@ def app() -> None:
     thread_id = st.session_state.thread_id
     st.write(f"thread_id: {thread_id}")
 
-    # ユーザーの指示を受け付ける
-    human_message = st.chat_input()
-    if human_message:
-        with st.spinner():
-            agent.handle_human_message(human_message, thread_id)
-
     # 会話履歴を表示
     messages = agent.get_messages(thread_id)
     show_messages(messages)
@@ -194,5 +188,14 @@ def app() -> None:
             # 会話履歴を表示するためrerun
             st.rerun()
 
+    # ユーザーの指示を受け付ける
+    human_message = st.chat_input()
+    if human_message:
+        with st.spinner():
+            agent.handle_human_message(human_message, thread_id)
+            # 会話履歴を表示するためrerun
+            st.rerun()
 
-app()
+
+if __name__ == "__main__":
+    app()
