@@ -15,7 +15,7 @@ def app() -> None:
     load_dotenv(override=True)
 
     with st.sidebar:
-        testset_size = st.number_input(label="Testset Size", min_value=1, value=4)
+        testset_size = st.number_input(label="Testset Size", min_value=1, value=6)
 
     st.title("Synthesize Dataset")
 
@@ -32,6 +32,10 @@ def app() -> None:
     )
     documents = loader.load()
     st.info(f"{len(documents)} documents loaded.")
+
+    # 実行時間短縮のため、ドキュメントの件数を50件に制限
+    documents = documents[:50]
+    st.info(f"{len(documents)} documents limited.")
 
     # 合成テストデータの生成
     nest_asyncio.apply()
