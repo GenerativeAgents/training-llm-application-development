@@ -29,7 +29,7 @@ def create_rag_chain() -> Runnable[Any, str]:
     retriever = vector_store.as_retriever()
     prompt = ChatPromptTemplate.from_template(_prompt_template)
 
-    model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+    model = ChatOpenAI(model="gpt-4.1-nano", temperature=0)
 
     return (
         {

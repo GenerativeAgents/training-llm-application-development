@@ -16,7 +16,7 @@ def create_chain() -> Runnable[dict[str, Any], str]:
             MessagesPlaceholder("messages", optional=True),
         ]
     )
-    model = ChatOpenAI(model="gpt-4o-mini")
+    model = ChatOpenAI(model="gpt-4.1-nano")
 
     return prompt | model | StrOutputParser()
 
