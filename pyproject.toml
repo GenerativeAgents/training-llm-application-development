@@ -14,6 +14,7 @@ dependencies = [
     "langchain-experimental==0.3.4",
     "langchain-openai==0.3.18",
     "langchain-text-splitters==0.3.8",
+    "langgraph-checkpoint-sqlite>=2.0.10",
     "langgraph==0.4.7",
     "nltk==3.9.1",
     "numpy==2.2.6",

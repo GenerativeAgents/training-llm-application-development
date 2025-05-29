@@ -1,9 +1,7 @@
 import sqlite3
 from typing import Annotated, Any, Literal
-from uuid import uuid4
 
 import streamlit as st
-from dotenv import load_dotenv
 from langchain_community.tools import ShellTool
 from langchain_community.tools.tavily_search import TavilySearchResults
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
@@ -13,7 +11,7 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode
-from langgraph.types import Command, RunnableConfig, interrupt
+from langgraph.types import Command, Interrupt, RunnableConfig, interrupt
 from pydantic import BaseModel
 from typing_extensions import TypedDict
 
@@ -152,47 +150,102 @@ def show_messages(messages: list[BaseMessage]) -> None:
             raise ValueError(f"Unknown message type: {message}")
 
 
-def app() -> None:
-    load_dotenv(override=True)
+class UIState(BaseModel):
+    selected_thread_id: str | None = None
 
-    st.title("Agent")
+
+class InterruptThread(BaseModel):
+    thread_id: str
+    thread_title: str
+    interrupts: list[Interrupt]
+
+
+def app() -> None:
+    st.title("Toy Agent Inbox")
+
+    conn = sqlite3.connect("tmp/checkpoints.sqlite", check_same_thread=False)
+    checkpointer = SqliteSaver(conn=conn)
+
+    checkpoints = checkpointer.list(config=None)
+
+    thread_ids = set()
+    for checkpoint in checkpoints:
+        thread_id = checkpoint.config["configurable"]["thread_id"]
+        thread_ids.add(thread_id)
+
+    interrupt_threads: list[InterruptThread] = []
+    for thread_id in thread_ids:
+        config = RunnableConfig(configurable={"thread_id": thread_id})
+        checkpoint_tuples = checkpointer.list(config)
+        last_checkpoint_tuple = next(checkpoint_tuples)
+        first_human_message = last_checkpoint_tuple.checkpoint["channel_values"][
+            "messages"
+        ][0].content
+        pending_writes = last_checkpoint_tuple.pending_writes
+
+        if pending_writes and pending_writes[0][1] == "__interrupt__":
+            interrupts = pending_writes[0][2]
+            interrupt_thread = InterruptThread(
+                thread_id=thread_id,
+                thread_title=first_human_message,
+                interrupts=interrupts,
+            )
+            interrupt_threads.append(interrupt_thread)
+
+    # st.session_stateにagentを保存
+    if "inbox_ui_state" not in st.session_state:
+        st.session_state.inbox_ui_state = UIState()
+    ui_state = st.session_state.inbox_ui_state
 
     # st.session_stateにagentを保存
     if "human_in_the_loop_agent" not in st.session_state:
-        conn = sqlite3.connect("tmp/checkpoints.sqlite", check_same_thread=False)
+        conn = sqlite3.connect("checkpoints.sqlite", check_same_thread=False)
         checkpointer = SqliteSaver(conn=conn)
         st.session_state.human_in_the_loop_agent = Agent(checkpointer=checkpointer)
     agent = st.session_state.human_in_the_loop_agent
 
-    # グラフを表示
-    with st.sidebar:
-        st.image(agent.mermaid_png())
+    col1, col2 = st.columns(2)
 
-    # st.session_stateにthread_idを保存
-    if "thread_id" not in st.session_state:
-        st.session_state.thread_id = uuid4().hex
-    thread_id = st.session_state.thread_id
-    st.write(f"thread_id: {thread_id}")
+    with col1:
+        for interrupt_thread in interrupt_threads:
+            with st.container(border=True):
+                st.subheader(interrupt_thread.thread_title)
+                st.write(f"thread_id: {interrupt_thread.thread_id}")
+                clicked = st.button("詳細", key=interrupt_thread.thread_id)
+                if clicked:
+                    ui_state.selected_thread_id = interrupt_thread.thread_id
 
-    # ユーザーの指示を受け付ける
-    human_message = st.chat_input()
-    if human_message:
-        with st.spinner():
-            agent.handle_human_message(human_message, thread_id)
+    with col2:
+        # スレッドが選択されていない場合は何も表示しない
+        if ui_state.selected_thread_id is None:
+            return
 
-    # 会話履歴を表示
-    messages = agent.get_messages(thread_id)
-    show_messages(messages)
+        thread_id = ui_state.selected_thread_id
 
-    # 次がhuman_review_nodeの場合は承認ボタンを表示
-    if agent.is_next_human_review_node(thread_id):
-        approved = st.button("承認")
-        # 承認されたらエージェントを実行
-        if approved:
+        st.session_state.thread_id = thread_id
+        st.write(f"thread_id: {thread_id}")
+
+        # 会話履歴を表示
+        messages = agent.get_messages(thread_id)
+        show_messages(messages)
+
+        # 次がhuman_review_nodeの場合は承認ボタンを表示
+        if agent.is_next_human_review_node(thread_id):
+            approved = st.button("承認")
+            # 承認されたらエージェントを実行
+            if approved:
+                with st.spinner():
+                    agent.handle_approve(thread_id)
+                # 会話履歴を表示するためrerun
+                st.rerun()
+
+        # ユーザーの指示を受け付ける
+        human_message = st.chat_input()
+        if human_message:
             with st.spinner():
-                agent.handle_approve(thread_id)
-            # 会話履歴を表示するためrerun
-            st.rerun()
+                agent.handle_human_message(human_message, thread_id)
+                # 会話履歴を表示するためrerun
+                st.rerun()
 
 
 app()
