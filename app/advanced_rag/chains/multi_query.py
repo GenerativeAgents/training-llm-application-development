@@ -49,7 +49,7 @@ def create_multi_query_rag_chain(model: BaseChatModel) -> Runnable[str, dict[str
         persist_directory="./tmp/chroma",
     )
 
-    retriever = vector_store.as_retriever()
+    retriever = vector_store.as_retriever(search_kwargs={"k": 5})
     rag_prompt = ChatPromptTemplate.from_template(_rag_prompt_template)
 
     query_generation_chain: Runnable[str, list[str]] = (

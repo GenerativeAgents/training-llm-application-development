@@ -69,7 +69,7 @@ def create_rag_fusion_chain(model: BaseChatModel) -> Runnable[str, dict[str, Any
         persist_directory="./tmp/chroma",
     )
 
-    retriever = vector_store.as_retriever()
+    retriever = vector_store.as_retriever(search_kwargs={"k": 5})
     rag_prompt = ChatPromptTemplate.from_template(_rag_prompt_template)
 
     query_generation_chain: Runnable[str, list[str]] = (
@@ -82,7 +82,8 @@ def create_rag_fusion_chain(model: BaseChatModel) -> Runnable[str, dict[str, Any
         {
             "context": query_generation_chain
             | retriever.map()
-            | _reciprocal_rank_fusion,
+            | _reciprocal_rank_fusion
+            | (lambda x: x[:5]),  # 上位5件のドキュメントを取得
             "question": RunnablePassthrough(),
         }
     ).with_types(input_type=str) | RunnablePassthrough.assign(

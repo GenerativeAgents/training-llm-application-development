@@ -27,11 +27,11 @@ def routed_retriever(inputs: dict[str, Any]) -> list[Document]:
         embedding_function=embedding,
         persist_directory="./tmp/chroma",
     )
-    langchain_document_retriever = vector_store.as_retriever().with_config(
-        {"run_name": "langchain_document_retriever"}
-    )
+    langchain_document_retriever = vector_store.as_retriever(
+        search_kwargs={"k": 5}
+    ).with_config({"run_name": "langchain_document_retriever"})
 
-    web_retriever = TavilySearchAPIRetriever(k=3).with_config(
+    web_retriever = TavilySearchAPIRetriever(k=5).with_config(
         {"run_name": "web_retriever"}
     )
 

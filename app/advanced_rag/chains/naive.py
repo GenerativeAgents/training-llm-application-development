@@ -25,7 +25,7 @@ def create_naive_rag_chain(model: BaseChatModel) -> Runnable[str, dict[str, Any]
         persist_directory="./tmp/chroma",
     )
 
-    retriever = vector_store.as_retriever()
+    retriever = vector_store.as_retriever(search_kwargs={"k": 5})
     prompt = ChatPromptTemplate.from_template(_prompt_template)
 
     return RunnableParallel(

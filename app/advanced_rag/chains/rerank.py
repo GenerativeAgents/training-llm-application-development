@@ -16,7 +16,7 @@ from langchain_openai import OpenAIEmbeddings
 
 
 class Rerank:
-    def __init__(self, top_n: int = 4):
+    def __init__(self, top_n: int = 5):
         self.top_n = top_n
 
     def __call__(self, inputs: dict[str, Any]) -> Sequence[Document]:

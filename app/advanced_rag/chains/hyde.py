@@ -31,7 +31,7 @@ def create_hyde_rag_chain(model: BaseChatModel) -> Runnable[str, dict[str, Any]]
         persist_directory="./tmp/chroma",
     )
 
-    retriever = vector_store.as_retriever()
+    retriever = vector_store.as_retriever(search_kwargs={"k": 5})
     rag_prompt = ChatPromptTemplate.from_template(_rag_prompt_template)
 
     hypothetical_chain: Runnable[str, str] = (

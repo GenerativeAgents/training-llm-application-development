@@ -46,7 +46,7 @@ def _create_hybrid_retriever() -> RetrieverLike:
         persist_directory="./tmp/chroma",
     )
 
-    chroma_retriever = vector_store.as_retriever().with_config(
+    chroma_retriever = vector_store.as_retriever(search_kwargs={"k": 10}).with_config(
         {"run_name": "chroma_retriever"}
     )
 
@@ -57,7 +57,7 @@ def _create_hybrid_retriever() -> RetrieverLike:
         loader_cls=TextLoader,
     )
     documents = loader.load()
-    bm25_retriever = BM25Retriever.from_documents(documents).with_config(
+    bm25_retriever = BM25Retriever.from_documents(documents, k=10).with_config(
         {"run_name": "bm25_retriever"}
     )
 
@@ -70,6 +70,7 @@ def _create_hybrid_retriever() -> RetrieverLike:
         ).with_types(input_type=str)
         | (lambda x: [x["chroma_documents"], x["bm25_documents"]])
         | _reciprocal_rank_fusion
+        | (lambda x: x[:5])  # 上位5件のドキュメントを取得
     )
 
 
