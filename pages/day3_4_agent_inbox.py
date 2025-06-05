@@ -5,6 +5,8 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.types import Interrupt, RunnableConfig
 from pydantic import BaseModel
 
+from pages.day3_3_human_in_the_loop import app as human_in_the_loop_app
+
 
 class UIState(BaseModel):
     selected_thread_id: str | None = None
@@ -16,12 +18,16 @@ class InterruptThread(BaseModel):
     interrupts: list[Interrupt]
 
 
-def app() -> None:
-    st.title("Toy Agent Inbox")
+def get_interrupt_threads(checkpointer: SqliteSaver) -> list[InterruptThread]:
+    """
+    この関数では、LangGraphのCheckpointerからInterrupt状態のスレッド一覧を取得します。
 
-    conn = sqlite3.connect("tmp/checkpoints.sqlite", check_same_thread=False)
-    checkpointer = SqliteSaver(conn=conn)
-
+    注意:
+    この関数の実装はLangGraphのCheckpointerの構造に強く依存しています。
+    実際にはCheckpointerの構造に強く依存するコードを使うことはおすすめしません。
+    LangGraphでInterrupt状態のスレッド一覧を取得したい場合は、
+    LangGraph ServerのAPIを使用するか、自前でスレッドの状態を管理することをおすすめします。
+    """
     checkpoints = checkpointer.list(config=None)
 
     thread_ids = set()
@@ -48,14 +54,25 @@ def app() -> None:
             )
             interrupt_threads.append(interrupt_thread)
 
+    return interrupt_threads
+
+
+def app() -> None:
+    st.title("Toy Agent Inbox")
+
+    conn = sqlite3.connect("tmp/checkpoints.sqlite", check_same_thread=False)
+    checkpointer = SqliteSaver(conn=conn)
+    interrupt_threads = get_interrupt_threads(checkpointer)
+
     # stateを初期化
-    if "inbox_ui_state" not in st.session_state:
-        st.session_state.inbox_ui_state = UIState()
-    ui_state = st.session_state.inbox_ui_state
+    if "agent_inbox_ui_state" not in st.session_state:
+        st.session_state.agent_inbox_ui_state = UIState()
+    ui_state = st.session_state.agent_inbox_ui_state
 
     col1, col2 = st.columns(2)
 
     with col1:
+        st.subheader("Interrupt Threads")
         for interrupt_thread in interrupt_threads:
             with st.container(border=True):
                 st.subheader(interrupt_thread.thread_title)
@@ -65,16 +82,11 @@ def app() -> None:
                     ui_state.selected_thread_id = interrupt_thread.thread_id
 
     with col2:
-        # スレッドが選択されていない場合は何も表示しない
         if ui_state.selected_thread_id is None:
+            st.info("スレッドを選択してください")
             return
-
-        thread_id = ui_state.selected_thread_id
-        st.session_state.thread_id = thread_id
-
-        from pages.day3_3_human_in_the_loop import app as hil_app
-
-        hil_app()
+        else:
+            human_in_the_loop_app(thread_id=ui_state.selected_thread_id)
 
 
 app()

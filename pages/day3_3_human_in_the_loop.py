@@ -152,39 +152,54 @@ def show_messages(messages: list[BaseMessage]) -> None:
             raise ValueError(f"Unknown message type: {message}")
 
 
-def app() -> None:
+class UIState:
+    def __init__(self, agent: Agent, thread_id: str | None = None) -> None:
+        self.agent: Agent = agent
+        self.new_thread()
+
+    def new_thread(self) -> None:
+        self.thread_id = uuid4().hex
+
+
+def app(thread_id: str | None = None) -> None:
     load_dotenv(override=True)
 
-    st.title("Agent")
-
     # st.session_stateにagentを保存
-    if "human_in_the_loop_agent" not in st.session_state:
+    if "human_in_the_loop_ui_state" not in st.session_state:
         conn = sqlite3.connect("tmp/checkpoints.sqlite", check_same_thread=False)
         checkpointer = SqliteSaver(conn=conn)
-        st.session_state.human_in_the_loop_agent = Agent(checkpointer=checkpointer)
-    agent = st.session_state.human_in_the_loop_agent
+        st.session_state.human_in_the_loop_ui_state = UIState(
+            agent=Agent(checkpointer=checkpointer),
+            thread_id=thread_id,
+        )
+    ui_state = st.session_state.human_in_the_loop_ui_state
+    if thread_id is not None:
+        ui_state.thread_id = thread_id
 
-    # グラフを表示
     with st.sidebar:
-        st.image(agent.mermaid_png())
+        # 新規スレッドボタン
+        clicked = st.button("新規スレッド")
+        if clicked:
+            ui_state.new_thread()
+            st.rerun()
 
-    # st.session_stateにthread_idを保存
-    if "thread_id" not in st.session_state:
-        st.session_state.thread_id = uuid4().hex
-    thread_id = st.session_state.thread_id
-    st.write(f"thread_id: {thread_id}")
+        # グラフを表示
+        st.image(ui_state.agent.mermaid_png())
+
+    st.title("Agent")
+    st.write(f"thread_id: {ui_state.thread_id}")
 
     # 会話履歴を表示
-    messages = agent.get_messages(thread_id)
+    messages = ui_state.agent.get_messages(ui_state.thread_id)
     show_messages(messages)
 
     # 次がhuman_review_nodeの場合は承認ボタンを表示
-    if agent.is_next_human_review_node(thread_id):
+    if ui_state.agent.is_next_human_review_node(ui_state.thread_id):
         approved = st.button("承認")
         # 承認されたらエージェントを実行
         if approved:
             with st.spinner():
-                agent.handle_approve(thread_id)
+                ui_state.agent.handle_approve(ui_state.thread_id)
             # 会話履歴を表示するためrerun
             st.rerun()
 
@@ -192,7 +207,7 @@ def app() -> None:
     human_message = st.chat_input()
     if human_message:
         with st.spinner():
-            agent.handle_human_message(human_message, thread_id)
+            ui_state.agent.handle_human_message(human_message, ui_state.thread_id)
             # 会話履歴を表示するためrerun
             st.rerun()
 
