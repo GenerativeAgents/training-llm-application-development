@@ -1,8 +1,8 @@
 import streamlit as st
 from dotenv import load_dotenv
+from langchain.embeddings import init_embeddings
 from langchain_chroma import Chroma
 from langchain_community.document_loaders import DirectoryLoader, TextLoader
-from langchain_openai import OpenAIEmbeddings
 from langchain_text_splitters import CharacterTextSplitter
 
 
@@ -26,13 +26,13 @@ def app() -> None:
     st.info(f"{len(raw_docs)} documents loaded.")
 
     # チャンク化
-    text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
+    text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
     docs = text_splitter.split_documents(raw_docs)
     st.info(f"{len(docs)} documents chunked.")
 
     # インデクシング
     with st.spinner("Indexing documents..."):
-        embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
+        embeddings = init_embeddings(model="text-embedding-3-small", provider="openai")
         vector_store = Chroma(
             embedding_function=embeddings,
             persist_directory="./tmp/chroma",
