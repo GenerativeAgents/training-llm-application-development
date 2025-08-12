@@ -1,24 +1,25 @@
-from typing import Any
+from typing import Iterator
 
 import streamlit as st
 from dotenv import load_dotenv
+from langchain.chat_models import init_chat_model
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_core.runnables import Runnable
-from langchain_openai import ChatOpenAI
 
 
-def create_chain() -> Runnable[dict[str, Any], str]:
+def stream_llm(messages: list[BaseMessage]) -> Iterator[str]:
     prompt = ChatPromptTemplate.from_messages(
         [
             ("system", "You are a helpful assistant."),
             MessagesPlaceholder("messages", optional=True),
         ]
     )
-    model = ChatOpenAI(model="gpt-4.1-nano")
-
-    return prompt | model | StrOutputParser()
+    model = init_chat_model(
+        model="gpt-4.1-nano", model_provider="openai", temperature=0
+    )
+    chain = prompt | model | StrOutputParser()
+    return chain.stream({"messages": messages})
 
 
 def app() -> None:
@@ -49,8 +50,7 @@ def app() -> None:
     messages.append(HumanMessage(content=human_message))
 
     # 応答を生成して表示
-    chain = create_chain()
-    stream = chain.stream({"messages": messages})
+    stream = stream_llm(messages)
     with st.chat_message("ai"):
         ai_message = st.write_stream(stream)
 

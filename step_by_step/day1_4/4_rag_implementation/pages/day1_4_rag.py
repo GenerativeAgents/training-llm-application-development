@@ -1,12 +1,12 @@
-from typing import Any
+from typing import Iterator
 
 import streamlit as st
 from dotenv import load_dotenv
+from langchain.chat_models import init_chat_model
+from langchain.embeddings import init_embeddings
 from langchain_chroma import Chroma
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import Runnable, RunnablePassthrough
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 
 _prompt_template = '''
 以下の文脈だけを踏まえて質問に回答してください。
@@ -19,27 +19,24 @@ _prompt_template = '''
 '''
 
 
-def create_rag_chain() -> Runnable[Any, str]:
-    embedding = OpenAIEmbeddings(model="text-embedding-3-small")
+def stream_rag(query: str) -> Iterator[str]:
+    embeddings = init_embeddings(model="text-embedding-3-small", provider="openai")
     vector_store = Chroma(
-        embedding_function=embedding,
+        embedding_function=embeddings,
         persist_directory="./tmp/chroma",
     )
 
     retriever = vector_store.as_retriever()
+
     prompt = ChatPromptTemplate.from_template(_prompt_template)
 
-    model = ChatOpenAI(model="gpt-4.1-nano", temperature=0)
-
-    return (
-        {
-            "context": retriever,
-            "question": RunnablePassthrough(),
-        }
-        | prompt
-        | model
-        | StrOutputParser()
+    model = init_chat_model(
+        model="gpt-4.1-nano", model_provider="openai", temperature=0
     )
+
+    documents = retriever.invoke(query)
+    chain = prompt | model | StrOutputParser()
+    return chain.stream({"question": query, "context": documents})
 
 
 def app() -> None:
@@ -53,8 +50,7 @@ def app() -> None:
         return
 
     # 回答を生成して表示
-    chain = create_rag_chain()
-    stream = chain.stream(question)
+    stream = stream_rag(question)
     st.write_stream(stream)
 
 
