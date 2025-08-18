@@ -19,7 +19,7 @@ _prompt_template = '''
 '''
 
 
-def stream_rag(query: str, model_name: str, temperature: float) -> Iterator[str]:
+def stream_rag(query: str, temperature: float, reasoning_effort: str) -> Iterator[str]:
     embeddings = init_embeddings(model="text-embedding-3-small", provider="openai")
     vector_store = Chroma(
         embedding_function=embeddings,
@@ -31,7 +31,10 @@ def stream_rag(query: str, model_name: str, temperature: float) -> Iterator[str]
     prompt = ChatPromptTemplate.from_template(_prompt_template)
 
     model = init_chat_model(
-        model=model_name, model_provider="openai", temperature=temperature
+        model="gpt-5-nano",
+        model_provider="openai",
+        temperature=temperature,
+        reasoning_effort=reasoning_effort,
     )
 
     documents = retriever.invoke(query)
@@ -43,11 +46,12 @@ def app() -> None:
     load_dotenv(override=True)
 
     with st.sidebar:
-        model_name = st.selectbox(
-            label="モデル", options=["gpt-4.1-nano", "gpt-4.1-mini", "gpt-4.1"]
-        )
         temperature = st.slider(
             label="temperature", min_value=0.0, max_value=1.0, value=0.0
+        )
+        reasoning_effort = st.selectbox(
+            label="reasoning_effort",
+            options=["minimal", "low", "medium", "high"],
         )
 
     st.title("RAG")
@@ -58,7 +62,7 @@ def app() -> None:
         return
 
     # 回答を生成して表示
-    stream = stream_rag(question, model_name, temperature)
+    stream = stream_rag(question, temperature, reasoning_effort)
     st.write_stream(stream)
 
 
