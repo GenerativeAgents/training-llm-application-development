@@ -33,7 +33,6 @@ def stream_rag(query: str) -> Iterator[str]:
     model = init_chat_model(
         model="gpt-5-nano",
         model_provider="openai",
-        temperature=0,
         reasoning_effort="minimal",
     )
 

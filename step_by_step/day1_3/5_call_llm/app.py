@@ -16,7 +16,6 @@ def invoke_llm(messages: list[BaseMessage]) -> str:
     model = init_chat_model(
         model="gpt-5-nano",
         model_provider="openai",
-        temperature=0,
         reasoning_effort="minimal",
     )
     chain = prompt | model | StrOutputParser()
