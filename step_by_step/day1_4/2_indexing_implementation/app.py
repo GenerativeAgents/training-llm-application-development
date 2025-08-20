@@ -16,7 +16,9 @@ def stream_llm(messages: list[BaseMessage]) -> Iterator[str]:
         ]
     )
     model = init_chat_model(
-        model="gpt-4.1-nano", model_provider="openai", temperature=0
+        model="gpt-5-nano",
+        model_provider="openai",
+        reasoning_effort="minimal",
     )
     chain = prompt | model | StrOutputParser()
     return chain.stream({"messages": messages})

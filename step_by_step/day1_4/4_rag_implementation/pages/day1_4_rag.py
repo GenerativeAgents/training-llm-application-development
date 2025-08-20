@@ -31,7 +31,9 @@ def stream_rag(query: str) -> Iterator[str]:
     prompt = ChatPromptTemplate.from_template(_prompt_template)
 
     model = init_chat_model(
-        model="gpt-4.1-nano", model_provider="openai", temperature=0
+        model="gpt-5-nano",
+        model_provider="openai",
+        reasoning_effort="minimal",
     )
 
     documents = retriever.invoke(query)
