@@ -71,6 +71,34 @@ model = AzureChatOpenAI(
 > [!WARNING]
 > azure_deployment には、Azure OpenAI Service で設定したデプロイ名を設定します。
 
+## LangChian の init_chat_model
+
+LangChain の init_chat_model を使用する箇所は、以下のように変更します。
+
+変更前
+
+```python
+model = init_chat_model(
+    model="gpt-5-nano",
+    model_provider="openai",
+    reasoning_effort="minimal",
+)
+```
+
+変更後
+
+```python
+model = init_chat_model(
+    model="gpt-5-nano",
+    model_provider="azure_openai",
+    api_version="2024-08-01-preview",
+    reasoning_effort="minimal",
+)
+```
+
+> [!WARNING]
+> model には、Azure OpenAI Service で設定したデプロイ名を設定します。
+
 ## LangChian の OpenAIEmbeddings
 
 LangChain の OpenAIEmbeddings を使用する箇所は、以下のように変更します。
@@ -89,6 +117,29 @@ embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
 from langchain_openai import AzureOpenAIEmbeddings
 
 embeddings = AzureOpenAIEmbeddings(model="text-embedding-3-small")
+```
+
+> [!WARNING]
+> model には、Azure OpenAI Service で設定したデプロイ名を設定します。
+
+## LangChain の init_embeddings
+
+LangChain の init_embeddings を使用する箇所は、以下のように変更します。
+
+変更前
+
+```python
+from langchain.embeddings import init_embeddings
+
+embeddings = init_embeddings(model="text-embedding-3-small", provider="openai")
+```
+
+変更後
+
+```python
+from langchain.embeddings import init_embeddings
+
+embeddings = init_embeddings(model="text-embedding-3-small", provider="azure_openai")
 ```
 
 > [!WARNING]
