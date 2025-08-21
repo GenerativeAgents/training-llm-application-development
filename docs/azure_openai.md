@@ -44,7 +44,7 @@ client = AzureOpenAI(
 > [!WARNING]
 > client を実行する際の model パラメータには、Azure OpenAI Service で設定したデプロイ名を設定します。
 
-## LangChian の ChatOpenAI
+## LangChain の ChatOpenAI
 
 LangChain の ChatOpenAI を使用する箇所は、以下のように変更します。
 
@@ -71,7 +71,7 @@ model = AzureChatOpenAI(
 > [!WARNING]
 > azure_deployment には、Azure OpenAI Service で設定したデプロイ名を設定します。
 
-## LangChian の init_chat_model
+## LangChain の init_chat_model
 
 LangChain の init_chat_model を使用する箇所は、以下のように変更します。
 
@@ -99,7 +99,7 @@ model = init_chat_model(
 > [!WARNING]
 > model には、Azure OpenAI Service で設定したデプロイ名を設定します。
 
-## LangChian の OpenAIEmbeddings
+## LangChain の OpenAIEmbeddings
 
 LangChain の OpenAIEmbeddings を使用する箇所は、以下のように変更します。
 
