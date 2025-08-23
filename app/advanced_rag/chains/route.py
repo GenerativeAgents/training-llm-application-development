@@ -1,46 +1,17 @@
 from enum import Enum
-from typing import Any
+from typing import Generator
 
 from langchain_chroma import Chroma
 from langchain_community.retrievers import TavilySearchAPIRetriever
-from langchain_core.documents import Document
 from langchain_core.language_models import BaseChatModel
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import Runnable, RunnableParallel, RunnablePassthrough
+from langchain_core.runnables import Runnable
 from langchain_openai import OpenAIEmbeddings
+from langsmith import traceable
 from pydantic import BaseModel
 
-_route_prompt = """\
-質問に回答するために適切なRetrieverを選択してください。
-
-質問: {question}
-"""
-
-
-def routed_retriever(inputs: dict[str, Any]) -> list[Document]:
-    question = inputs["question"]
-    route = inputs["route"]
-
-    embedding = OpenAIEmbeddings(model="text-embedding-3-small")
-    vector_store = Chroma(
-        embedding_function=embedding,
-        persist_directory="./tmp/chroma",
-    )
-    langchain_document_retriever = vector_store.as_retriever(
-        search_kwargs={"k": 5}
-    ).with_config({"run_name": "langchain_document_retriever"})
-
-    web_retriever = TavilySearchAPIRetriever(k=5).with_config(
-        {"run_name": "web_retriever"}
-    )
-
-    if route == Route.langchain_document:
-        return langchain_document_retriever.invoke(question)
-    elif route == Route.web:
-        return web_retriever.invoke(question)
-
-    raise ValueError(f"Unknown route: {route}")
+from app.advanced_rag.chains.base import AnswerToken, BaseRAGChain, Context
 
 
 class Route(str, Enum):
@@ -52,7 +23,14 @@ class RouteOutput(BaseModel):
     route: Route
 
 
-_prompt_template = '''
+_route_prompt_template = """\
+質問に回答するために適切なRetrieverを選択してください。
+
+質問: {question}
+"""
+
+
+_generate_answer_prompt_template = '''
 以下の文脈だけを踏まえて質問に回答してください。
 
 文脈: """
@@ -63,22 +41,56 @@ _prompt_template = '''
 '''
 
 
-def create_route_rag_chain(model: BaseChatModel) -> Runnable[str, dict[str, Any]]:
-    prompt = ChatPromptTemplate.from_template(_prompt_template)
+class RouteRAGChain(BaseRAGChain):
+    def __init__(self, model: BaseChatModel):
+        # ルーティングのChainの準備
+        route_prompt = ChatPromptTemplate.from_template(_route_prompt_template)
+        self.route_chain: Runnable[dict[str, str], RouteOutput] = (
+            route_prompt | model.with_structured_output(RouteOutput)  # type: ignore[assignment]
+        )
 
-    route_chain: Runnable[str, Route] = (
-        ChatPromptTemplate.from_template(_route_prompt)
-        | model.with_structured_output(RouteOutput)
-        | (lambda x: x.route)  # type: ignore[assignment]
-    )
+        # LangChainのドキュメントを検索する準備
+        embedding = OpenAIEmbeddings(model="text-embedding-3-small")
+        vector_store = Chroma(
+            embedding_function=embedding,
+            persist_directory="./tmp/chroma",
+        )
+        self.langchain_document_retriever = vector_store.as_retriever(
+            search_kwargs={"k": 5}
+        ).with_config({"run_name": "langchain_document_retriever"})
 
-    return (
-        RunnableParallel(
-            {
-                "question": RunnablePassthrough(),
-                "route": route_chain,
-            }
-        ).with_types(input_type=str)
-        | RunnablePassthrough.assign(context=routed_retriever)
-        | RunnablePassthrough.assign(answer=prompt | model | StrOutputParser())
-    )
+        # Web検索の準備
+        self.web_retriever = TavilySearchAPIRetriever(k=5).with_config(
+            {"run_name": "web_retriever"}
+        )
+
+        # 回答生成のChainの準備
+        generate_answer_prompt = ChatPromptTemplate.from_template(
+            _generate_answer_prompt_template
+        )
+        self.generate_answer_chain = generate_answer_prompt | model | StrOutputParser()
+
+    @traceable(name="route")
+    def stream(self, question: str) -> Generator[Context | AnswerToken, None, None]:
+        # ルーティング
+        route_output = self.route_chain.invoke({"question": question})
+        route = route_output.route
+
+        # ルーティングに応じて検索
+        if route == Route.langchain_document:
+            documents = self.langchain_document_retriever.invoke(question)
+        elif route == Route.web:
+            documents = self.web_retriever.invoke(question)
+
+        # 検索結果を返す
+        yield Context(documents=documents)
+
+        # 回答を生成して徐々に応答を返す
+        for chunk in self.generate_answer_chain.stream(
+            {"context": documents, "question": question}
+        ):
+            yield AnswerToken(token=chunk)
+
+
+def create_route_rag_chain(model: BaseChatModel) -> BaseRAGChain:
+    return RouteRAGChain(model)

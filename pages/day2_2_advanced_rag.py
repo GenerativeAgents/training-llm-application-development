@@ -2,6 +2,7 @@ import streamlit as st
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 
+from app.advanced_rag.chains.base import AnswerToken, Context
 from app.advanced_rag.factory import chain_constructor_by_name, create_rag_chain
 
 
@@ -34,21 +35,21 @@ def app() -> None:
     answer_start = False
     answer = ""
     for chunk in chain.stream(question):
-        if "context" in chunk:
+        if isinstance(chunk, Context):
             st.write("### 検索結果")
-            for doc in chunk["context"]:
+            for doc in chunk.documents:
                 source = doc.metadata["source"]
                 content = doc.page_content
                 with st.expander(source):
                     st.text(content)
 
-        if "answer" in chunk:
+        if isinstance(chunk, AnswerToken):
             if not answer_start:
                 answer_start = True
                 st.write("### 回答")
                 placeholder = st.empty()
 
-            answer += chunk["answer"]
+            answer += chunk.token
             placeholder.write(answer)
 
 

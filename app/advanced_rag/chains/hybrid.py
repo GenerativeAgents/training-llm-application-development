@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Generator
 
 from langchain.load import dumps, loads
 from langchain_chroma import Chroma
@@ -8,11 +8,24 @@ from langchain_core.documents import Document
 from langchain_core.language_models import BaseChatModel
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.retrievers import RetrieverLike
-from langchain_core.runnables import Runnable, RunnableParallel, RunnablePassthrough
+from langchain_core.runnables import RunnableParallel
 from langchain_openai import OpenAIEmbeddings
+from langsmith import traceable
+
+from app.advanced_rag.chains.base import AnswerToken, BaseRAGChain, Context
+
+_generate_answer_prompt_template = '''
+以下の文脈だけを踏まえて質問に回答してください。
+
+文脈: """
+{context}
+"""
+
+質問: {question}
+'''
 
 
+@traceable
 def _reciprocal_rank_fusion(
     retriever_outputs: list[list[Document]],
     k: int = 60,
@@ -39,62 +52,61 @@ def _reciprocal_rank_fusion(
     return [loads(doc_str) for doc_str, _ in ranked]
 
 
-def _create_hybrid_retriever() -> RetrieverLike:
-    embedding = OpenAIEmbeddings(model="text-embedding-3-small")
-    vector_store = Chroma(
-        embedding_function=embedding,
-        persist_directory="./tmp/chroma",
-    )
+class HybridRAGChain(BaseRAGChain):
+    def __init__(self, model: BaseChatModel):
+        # Embeddingモデルを使ったベクトル検索の準備
+        embedding = OpenAIEmbeddings(model="text-embedding-3-small")
+        vector_store = Chroma(
+            embedding_function=embedding,
+            persist_directory="./tmp/chroma",
+        )
+        self.chroma_retriever = vector_store.as_retriever(
+            search_kwargs={"k": 20}
+        ).with_config({"run_name": "chroma_retriever"})
 
-    chroma_retriever = vector_store.as_retriever(search_kwargs={"k": 10}).with_config(
-        {"run_name": "chroma_retriever"}
-    )
+        # BM25を使った検索の準備
+        loader = DirectoryLoader(
+            path="tmp/langchain",
+            glob="**/*.mdx",
+            loader_cls=TextLoader,
+        )
+        documents = loader.load()
+        self.bm25_retriever = BM25Retriever.from_documents(documents, k=10).with_config(
+            {"run_name": "bm25_retriever"}
+        )
 
-    loader = DirectoryLoader(
-        # ../tmp/langchain ではないので注意
-        path="tmp/langchain",
-        glob="**/*.mdx",
-        loader_cls=TextLoader,
-    )
-    documents = loader.load()
-    bm25_retriever = BM25Retriever.from_documents(documents, k=10).with_config(
-        {"run_name": "bm25_retriever"}
-    )
+        # 回答生成のChainの準備
+        generate_answer_prompt = ChatPromptTemplate.from_template(
+            _generate_answer_prompt_template
+        )
+        self.generate_answer_chain = generate_answer_prompt | model | StrOutputParser()
 
-    return (
-        RunnableParallel(
+    @traceable(name="hybrid")
+    def stream(self, question: str) -> Generator[Context | AnswerToken, None, None]:
+        # 並列で検索する準備
+        parallel_retriever = RunnableParallel(
             {
-                "chroma_documents": chroma_retriever,
-                "bm25_documents": bm25_retriever,
+                "chroma_documents": self.chroma_retriever,
+                "bm25_documents": self.bm25_retriever,
             }
-        ).with_types(input_type=str)
-        | (lambda x: [x["chroma_documents"], x["bm25_documents"]])
-        | _reciprocal_rank_fusion
-        | (lambda x: x[:5])  # 上位5件のドキュメントを取得
-    )
+        )
+        # 並列で検索する
+        parallel_retriever_output = parallel_retriever.invoke(question)
+        chroma_documents = parallel_retriever_output["chroma_documents"]
+        bm25_documents = parallel_retriever_output["bm25_documents"]
+
+        # 検索結果をRRFで融合する
+        fused_documents = _reciprocal_rank_fusion([chroma_documents, bm25_documents])
+        # 上位5件のドキュメントに絞って返す
+        documents = fused_documents[:5]
+        yield Context(documents=documents)
+
+        # 回答を生成して徐々に応答を返す
+        for chunk in self.generate_answer_chain.stream(
+            {"context": documents, "question": question}
+        ):
+            yield AnswerToken(token=chunk)
 
 
-_prompt_template = '''
-以下の文脈だけを踏まえて質問に回答してください。
-
-文脈: """
-{context}
-"""
-
-質問: {question}
-'''
-
-
-def create_hybrid_rag_chain(model: BaseChatModel) -> Runnable[str, dict[str, Any]]:
-    retriever = _create_hybrid_retriever()
-
-    prompt = ChatPromptTemplate.from_template(_prompt_template)
-
-    return RunnableParallel(
-        {
-            "context": retriever,
-            "question": RunnablePassthrough(),
-        }
-    ).with_types(input_type=str) | RunnablePassthrough.assign(
-        answer=prompt | model | StrOutputParser()
-    )
+def create_hybrid_rag_chain(model: BaseChatModel) -> BaseRAGChain:
+    return HybridRAGChain(model)

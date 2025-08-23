@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Generator
 
 from langchain.load import dumps, loads
 from langchain_chroma import Chroma
@@ -6,16 +6,19 @@ from langchain_core.documents import Document
 from langchain_core.language_models import BaseChatModel
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import Runnable, RunnableParallel, RunnablePassthrough
+from langchain_core.runnables import Runnable
 from langchain_openai import OpenAIEmbeddings
+from langsmith import traceable
 from pydantic import BaseModel, Field
+
+from app.advanced_rag.chains.base import AnswerToken, BaseRAGChain, Context
 
 
 class QueryGenerationOutput(BaseModel):
     queries: list[str] = Field(..., description="検索クエリのリスト")
 
 
-_query_generation_prompt = """\
+_query_generation_prompt_template = """\
 質問に対してベクターデータベースから関連文書を検索するために、
 3つの異なる検索クエリを生成してください。
 距離ベースの類似性検索の限界を克服するために、
@@ -25,7 +28,7 @@ _query_generation_prompt = """\
 """
 
 
-_rag_prompt_template = '''
+_generate_answer_prompt_template = '''
 以下の文脈だけを踏まえて質問に回答してください。
 
 文脈: """
@@ -36,6 +39,7 @@ _rag_prompt_template = '''
 '''
 
 
+@traceable
 def _reciprocal_rank_fusion(
     retriever_outputs: list[list[Document]],
     k: int = 60,
@@ -62,30 +66,52 @@ def _reciprocal_rank_fusion(
     return [loads(doc_str) for doc_str, _ in ranked]
 
 
-def create_rag_fusion_chain(model: BaseChatModel) -> Runnable[str, dict[str, Any]]:
-    embedding = OpenAIEmbeddings(model="text-embedding-3-small")
-    vector_store = Chroma(
-        embedding_function=embedding,
-        persist_directory="./tmp/chroma",
-    )
+class RAGFusionRAGChain(BaseRAGChain):
+    def __init__(self, model: BaseChatModel):
+        # 検索クエリを生成するChainの準備
+        query_generation_prompt = ChatPromptTemplate.from_template(
+            _query_generation_prompt_template
+        )
+        self.query_generation_chain: Runnable[dict[str, str], QueryGenerationOutput] = (
+            query_generation_prompt
+            | model.with_structured_output(QueryGenerationOutput)  # type: ignore[assignment]
+        )
 
-    retriever = vector_store.as_retriever(search_kwargs={"k": 5})
-    rag_prompt = ChatPromptTemplate.from_template(_rag_prompt_template)
+        # 検索の準備
+        embedding = OpenAIEmbeddings(model="text-embedding-3-small")
+        vector_store = Chroma(
+            embedding_function=embedding,
+            persist_directory="./tmp/chroma",
+        )
+        self.retriever = vector_store.as_retriever(search_kwargs={"k": 5})
 
-    query_generation_chain: Runnable[str, list[str]] = (
-        ChatPromptTemplate.from_template(_query_generation_prompt)
-        | model.with_structured_output(QueryGenerationOutput)
-        | (lambda x: x.queries)  # type: ignore[assignment]
-    )
+        # 回答生成のChainの準備
+        generate_answer_prompt = ChatPromptTemplate.from_template(
+            _generate_answer_prompt_template
+        )
+        self.generate_answer_chain = generate_answer_prompt | model | StrOutputParser()
 
-    return RunnableParallel(
-        {
-            "context": query_generation_chain
-            | retriever.map()
-            | _reciprocal_rank_fusion
-            | (lambda x: x[:5]),  # 上位5件のドキュメントを取得
-            "question": RunnablePassthrough(),
-        }
-    ).with_types(input_type=str) | RunnablePassthrough.assign(
-        answer=rag_prompt | model | StrOutputParser()
-    )
+    @traceable(name="rag_fusion")
+    def stream(self, question: str) -> Generator[Context | AnswerToken, None, None]:
+        # 検索クエリを生成する
+        query_generation_output = self.query_generation_chain.invoke(
+            {"question": question}
+        )
+
+        # 検索する
+        documents_list = self.retriever.batch(query_generation_output.queries)
+        # 検索結果をRRFで融合する
+        fused_documents = _reciprocal_rank_fusion(documents_list)
+        # 上位5件のドキュメントに絞って返す
+        documents = fused_documents[:5]
+        yield Context(documents=documents)
+
+        # 回答を生成して徐々に応答を返す
+        for chunk in self.generate_answer_chain.stream(
+            {"context": documents, "question": question}
+        ):
+            yield AnswerToken(token=chunk)
+
+
+def create_rag_fusion_chain(model: BaseChatModel) -> BaseRAGChain:
+    return RAGFusionRAGChain(model)

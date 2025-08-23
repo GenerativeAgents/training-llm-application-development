@@ -1,20 +1,22 @@
-from typing import Any
+from typing import Generator
 
 from langchain_chroma import Chroma
-from langchain_core.documents import Document
 from langchain_core.language_models import BaseChatModel
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import Runnable, RunnableParallel, RunnablePassthrough
+from langchain_core.runnables import Runnable
 from langchain_openai import OpenAIEmbeddings
+from langsmith import traceable
 from pydantic import BaseModel, Field
+
+from app.advanced_rag.chains.base import AnswerToken, BaseRAGChain, Context
 
 
 class QueryGenerationOutput(BaseModel):
     queries: list[str] = Field(..., description="検索クエリのリスト")
 
 
-_query_generation_prompt = """\
+_query_generation_prompt_template = """\
 質問に対してベクターデータベースから関連文書を検索するために、
 3つの異なる検索クエリを生成してください。
 距離ベースの類似性検索の限界を克服するために、
@@ -24,7 +26,7 @@ _query_generation_prompt = """\
 """
 
 
-_rag_prompt_template = '''
+_generate_answer_prompt_template = '''
 以下の文脈だけを踏まえて質問に回答してください。
 
 文脈: """
@@ -35,34 +37,49 @@ _rag_prompt_template = '''
 '''
 
 
-def flatten(nested_list: list[list[Document]]) -> list[Document]:
-    res = []
-    for sublist in nested_list:
-        res.extend(sublist)
-    return res
+class MultiQueryRAGChain(BaseRAGChain):
+    def __init__(self, model: BaseChatModel):
+        # 検索クエリを生成するChainの準備
+        query_generation_prompt = ChatPromptTemplate.from_template(
+            _query_generation_prompt_template
+        )
+        self.query_generation_chain: Runnable[dict[str, str], QueryGenerationOutput] = (
+            query_generation_prompt
+            | model.with_structured_output(QueryGenerationOutput)  # type: ignore[assignment]
+        )
+
+        # 検索の準備
+        embedding = OpenAIEmbeddings(model="text-embedding-3-small")
+        vector_store = Chroma(
+            embedding_function=embedding,
+            persist_directory="./tmp/chroma",
+        )
+        self.retriever = vector_store.as_retriever(search_kwargs={"k": 5})
+
+        # 回答生成のChainの準備
+        generate_answer_prompt = ChatPromptTemplate.from_template(
+            _generate_answer_prompt_template
+        )
+        self.generate_answer_chain = generate_answer_prompt | model | StrOutputParser()
+
+    @traceable(name="multi_query")
+    def stream(self, question: str) -> Generator[Context | AnswerToken, None, None]:
+        # 検索クエリを生成する
+        query_generation_output = self.query_generation_chain.invoke(
+            {"question": question}
+        )
+
+        # 検索して検索結果を返す
+        documents_list = self.retriever.batch(query_generation_output.queries)
+        documents = [doc for docs in documents_list for doc in docs]
+        yield Context(documents=documents)
+
+        # 回答を生成して徐々に応答を返す
+        for chunk in self.generate_answer_chain.stream(
+            {"context": documents, "question": question}
+        ):
+            yield AnswerToken(token=chunk)
 
 
-def create_multi_query_rag_chain(model: BaseChatModel) -> Runnable[str, dict[str, Any]]:
-    embedding = OpenAIEmbeddings(model="text-embedding-3-small")
-    vector_store = Chroma(
-        embedding_function=embedding,
-        persist_directory="./tmp/chroma",
-    )
-
-    retriever = vector_store.as_retriever(search_kwargs={"k": 5})
-    rag_prompt = ChatPromptTemplate.from_template(_rag_prompt_template)
-
-    query_generation_chain: Runnable[str, list[str]] = (
-        ChatPromptTemplate.from_template(_query_generation_prompt)
-        | model.with_structured_output(QueryGenerationOutput)
-        | (lambda x: x.queries)  # type: ignore[assignment]
-    )
-
-    return RunnableParallel(
-        {
-            "context": query_generation_chain | retriever.map() | flatten,
-            "question": RunnablePassthrough(),
-        }
-    ).with_types(input_type=str) | RunnablePassthrough.assign(
-        answer=rag_prompt | model | StrOutputParser()
-    )
+def create_multi_query_rag_chain(model: BaseChatModel) -> BaseRAGChain:
+    return MultiQueryRAGChain(model)
