@@ -1,5 +1,6 @@
 from typing import Generator
 
+from langchain.embeddings import init_embeddings
 from langchain.load import dumps, loads
 from langchain_chroma import Chroma
 from langchain_community.document_loaders import DirectoryLoader, TextLoader
@@ -9,7 +10,6 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableParallel
-from langchain_openai import OpenAIEmbeddings
 from langsmith import traceable
 
 from app.advanced_rag.chains.base import AnswerToken, BaseRAGChain, Context
@@ -55,9 +55,9 @@ def _reciprocal_rank_fusion(
 class HybridRAGChain(BaseRAGChain):
     def __init__(self, model: BaseChatModel):
         # Embeddingモデルを使ったベクトル検索の準備
-        embedding = OpenAIEmbeddings(model="text-embedding-3-small")
+        embeddings = init_embeddings(model="text-embedding-3-small", provider="openai")
         vector_store = Chroma(
-            embedding_function=embedding,
+            embedding_function=embeddings,
             persist_directory="./tmp/chroma",
         )
         self.chroma_retriever = vector_store.as_retriever(

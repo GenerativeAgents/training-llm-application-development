@@ -1,10 +1,10 @@
 from typing import Generator
 
+from langchain.embeddings import init_embeddings
 from langchain_chroma import Chroma
 from langchain_core.language_models import BaseChatModel
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import OpenAIEmbeddings
 from langsmith import traceable
 
 from app.advanced_rag.chains.base import AnswerToken, BaseRAGChain, Context
@@ -23,9 +23,9 @@ _generate_answer_prompt_template = '''
 class NaiveRAGChain(BaseRAGChain):
     def __init__(self, model: BaseChatModel):
         # 検索の準備
-        embedding = OpenAIEmbeddings(model="text-embedding-3-small")
+        embeddings = init_embeddings(model="text-embedding-3-small", provider="openai")
         vector_store = Chroma(
-            embedding_function=embedding,
+            embedding_function=embeddings,
             persist_directory="./tmp/chroma",
         )
         self.retriever = vector_store.as_retriever(search_kwargs={"k": 5})

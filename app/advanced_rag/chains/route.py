@@ -1,13 +1,13 @@
 from enum import Enum
 from typing import Generator
 
+from langchain.embeddings import init_embeddings
 from langchain_chroma import Chroma
 from langchain_community.retrievers import TavilySearchAPIRetriever
 from langchain_core.language_models import BaseChatModel
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import Runnable
-from langchain_openai import OpenAIEmbeddings
 from langsmith import traceable
 from pydantic import BaseModel
 
@@ -25,6 +25,8 @@ class RouteOutput(BaseModel):
 
 _route_prompt_template = """\
 質問に回答するために適切なRetrieverを選択してください。
+用意しているのは、LangChainに関する情報を検索する「langchain_document」と、
+それ以外の質問をWebサイトで検索するための「web」です。
 
 質問: {question}
 """
@@ -50,9 +52,9 @@ class RouteRAGChain(BaseRAGChain):
         )
 
         # LangChainのドキュメントを検索する準備
-        embedding = OpenAIEmbeddings(model="text-embedding-3-small")
+        embeddings = init_embeddings(model="text-embedding-3-small", provider="openai")
         vector_store = Chroma(
-            embedding_function=embedding,
+            embedding_function=embeddings,
             persist_directory="./tmp/chroma",
         )
         self.langchain_document_retriever = vector_store.as_retriever(
