@@ -1,3 +1,5 @@
+from typing import Sequence
+
 import streamlit as st
 from dotenv import load_dotenv
 from langchain.callbacks import collect_runs
@@ -7,6 +9,7 @@ from langsmith import Client
 from pydantic import BaseModel
 from streamlit_feedback import streamlit_feedback  # type: ignore[import-untyped]
 
+from app.advanced_rag.chains.base import AnswerToken, Context
 from app.advanced_rag.factory import chain_constructor_by_name, create_rag_chain
 
 
@@ -17,7 +20,7 @@ class SessionState(BaseModel):
     run_id: str | None
 
 
-def show_context(context: list[Document]) -> None:
+def show_context(context: Sequence[Document]) -> None:
     st.write("### 検索結果")
     for doc in context:
         source = doc.metadata["source"]
@@ -69,18 +72,18 @@ def app() -> None:
             answer_start = False
             answer = ""
             for chunk in chain.stream(question):
-                if "context" in chunk:
-                    context = chunk["context"]
+                if isinstance(chunk, Context):
+                    context = chunk.documents
                     show_context(context)
                     st.session_state.state.context = context
 
-                if "answer" in chunk:
+                if isinstance(chunk, AnswerToken):
                     if not answer_start:
                         answer_start = True
                         st.write("### 回答")
                         placeholder = st.empty()
 
-                    answer += chunk["answer"]
+                    answer += chunk.token
                     placeholder.write(answer)
 
             st.session_state.state.answer = answer
