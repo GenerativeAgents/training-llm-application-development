@@ -1,10 +1,11 @@
 import streamlit as st
 from dotenv import load_dotenv
+from langchain.chat_models import init_chat_model
 from langchain_chroma import Chroma
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
 from langchain_core.tools import create_retriever_tool
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
-from langgraph.graph.graph import CompiledGraph
+from langchain_openai import OpenAIEmbeddings
+from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import create_react_agent
 
 # from langchain_community.tools import ShellTool
@@ -19,7 +20,7 @@ from langgraph.prebuilt import create_react_agent
 #         return "電気を消しました"
 
 
-def create_agent_chain(model_name: str) -> CompiledGraph:
+def create_agent(model_name: str, reasoning_effort: str) -> CompiledStateGraph:
     embedding = OpenAIEmbeddings(model="text-embedding-3-small")
     vector_store = Chroma(
         embedding_function=embedding,
@@ -41,8 +42,11 @@ def create_agent_chain(model_name: str) -> CompiledGraph:
         # turn_light,
     ]
 
-    model = ChatOpenAI(model=model_name, temperature=0)
-
+    model = init_chat_model(
+        model=model_name,
+        model_provider="openai",
+        reasoning_effort=reasoning_effort,
+    )
     return create_react_agent(model=model, tools=tools)
 
 
@@ -79,7 +83,14 @@ def app() -> None:
 
     with st.sidebar:
         model_name = st.selectbox(
-            label="モデル", options=["gpt-4.1-nano", "gpt-4.1-mini", "gpt-4.1"]
+            label="model_name",
+            options=["gpt-5-nano", "gpt-5-mini", "gpt-5"],
+            index=1,
+        )
+        reasoning_effort = st.selectbox(
+            label="reasoning_effort",
+            options=["minimal", "low", "medium", "high"],
+            index=2,
         )
 
     # 会話履歴を初期化
@@ -104,7 +115,7 @@ def app() -> None:
     messages.append(HumanMessage(content=human_message))
 
     # 応答を生成
-    agent = create_agent_chain(model_name=model_name)
+    agent = create_agent(model_name=model_name, reasoning_effort=reasoning_effort)
     for s in agent.stream({"messages": messages}, stream_mode="values"):  # type: ignore[assignment]
         last_message = s["messages"][-1]
 
