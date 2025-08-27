@@ -10,6 +10,7 @@ import operator
 from typing import Annotated, Any, Optional
 
 from dotenv import load_dotenv
+from langchain.chat_models.base import BaseChatModel
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
@@ -74,7 +75,7 @@ class InterviewState(BaseModel):
 
 # ペルソナを生成するクラス
 class PersonaGenerator:
-    def __init__(self, llm: ChatOpenAI, k: int = 5):
+    def __init__(self, llm: BaseChatModel, k: int = 5):
         self.llm = llm.with_structured_output(Personas)
         self.k = k
 
@@ -97,12 +98,12 @@ class PersonaGenerator:
         # ペルソナ生成のためのチェーンを作成
         chain = prompt | self.llm
         # ペルソナを生成
-        return chain.invoke({"user_request": user_request})
+        return chain.invoke({"user_request": user_request})  # type: ignore[return-value]
 
 
 # インタビューを実施するクラス
 class InterviewConductor:
-    def __init__(self, llm: ChatOpenAI):
+    def __init__(self, llm: BaseChatModel):
         self.llm = llm
 
     def run(self, user_request: str, personas: list[Persona]) -> InterviewResult:
@@ -193,7 +194,7 @@ class InterviewConductor:
 
 # 情報の十分性を評価するクラス
 class InformationEvaluator:
-    def __init__(self, llm: ChatOpenAI):
+    def __init__(self, llm: BaseChatModel):
         self.llm = llm.with_structured_output(EvaluationResult)
 
     # ユーザーリクエストとインタビュー結果を基に情報の十分性を評価
@@ -225,12 +226,12 @@ class InformationEvaluator:
                     for i in interviews
                 ),
             }
-        )
+        )  # type: ignore[return-value]
 
 
 # 要件定義書を生成するクラス
 class RequirementsDocumentGenerator:
-    def __init__(self, llm: ChatOpenAI):
+    def __init__(self, llm: BaseChatModel):
         self.llm = llm
 
     def run(self, user_request: str, interviews: list[Interview]) -> str:
@@ -270,12 +271,12 @@ class RequirementsDocumentGenerator:
                     for i in interviews
                 ),
             }
-        )
+        )  # type: ignore[return-value]
 
 
 # 要件定義書生成AIエージェントのクラス
 class DocumentationAgent:
-    def __init__(self, llm: ChatOpenAI, k: Optional[int] = None):
+    def __init__(self, llm: BaseChatModel, k: Optional[int] = None):
         # 各種ジェネレータの初期化
         self.persona_generator = PersonaGenerator(llm=llm, k=k)
         self.interview_conductor = InterviewConductor(llm=llm)

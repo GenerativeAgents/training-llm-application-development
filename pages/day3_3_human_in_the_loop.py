@@ -4,10 +4,10 @@ from uuid import uuid4
 
 import streamlit as st
 from dotenv import load_dotenv
+from langchain.chat_models import init_chat_model
 from langchain_community.tools import ShellTool
 from langchain_community.tools.tavily_search import TavilySearchResults
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
-from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import END, START, StateGraph
@@ -32,7 +32,11 @@ class State(TypedDict):
 
 class Agent:
     def __init__(self, checkpointer: BaseCheckpointSaver) -> None:
-        self.llm = ChatOpenAI(model="gpt-4.1-nano")
+        self.llm = init_chat_model(
+            model="gpt-4.1-nano",
+            model_provider="openai",
+            temperature=1,
+        )
         self.tools = [TavilySearchResults(), ShellTool()]
 
         graph_builder = StateGraph(State)
