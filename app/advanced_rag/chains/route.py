@@ -11,7 +11,7 @@ from langchain_core.runnables import Runnable
 from langsmith import traceable
 from pydantic import BaseModel
 
-from app.advanced_rag.chains.base import AnswerToken, BaseRAGChain, Context
+from app.advanced_rag.chains.base import AnswerToken, BaseRAGChain, Context, reduce_fn
 
 
 class Route(str, Enum):
@@ -72,7 +72,7 @@ class RouteRAGChain(BaseRAGChain):
         )
         self.generate_answer_chain = generate_answer_prompt | model | StrOutputParser()
 
-    @traceable(name="route")
+    @traceable(name="route", reduce_fn=reduce_fn)
     def stream(self, question: str) -> Generator[Context | AnswerToken, None, None]:
         # ルーティング
         route_output = self.route_chain.invoke({"question": question})

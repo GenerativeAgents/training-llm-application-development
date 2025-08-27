@@ -11,7 +11,7 @@ from langchain_core.runnables import Runnable
 from langsmith import traceable
 from pydantic import BaseModel, Field
 
-from app.advanced_rag.chains.base import AnswerToken, BaseRAGChain, Context
+from app.advanced_rag.chains.base import AnswerToken, BaseRAGChain, Context, reduce_fn
 
 
 class QueryGenerationOutput(BaseModel):
@@ -91,7 +91,7 @@ class RAGFusionRAGChain(BaseRAGChain):
         )
         self.generate_answer_chain = generate_answer_prompt | model | StrOutputParser()
 
-    @traceable(name="rag_fusion")
+    @traceable(name="rag_fusion", reduce_fn=reduce_fn)
     def stream(self, question: str) -> Generator[Context | AnswerToken, None, None]:
         # 検索クエリを生成する
         query_generation_output = self.query_generation_chain.invoke(

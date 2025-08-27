@@ -7,7 +7,7 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langsmith import traceable
 
-from app.advanced_rag.chains.base import AnswerToken, BaseRAGChain, Context
+from app.advanced_rag.chains.base import AnswerToken, BaseRAGChain, Context, reduce_fn
 
 _generate_answer_prompt_template = '''
 以下の文脈だけを踏まえて質問に回答してください。
@@ -36,7 +36,7 @@ class NaiveRAGChain(BaseRAGChain):
         )
         self.generate_answer_chain = generate_answer_prompt | model | StrOutputParser()
 
-    @traceable(name="naive")
+    @traceable(name="naive", reduce_fn=reduce_fn)
     def stream(self, question: str) -> Generator[Context | AnswerToken, None, None]:
         # 検索して検索結果を返す
         documents = self.retriever.invoke(question)
