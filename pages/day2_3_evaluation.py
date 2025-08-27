@@ -96,20 +96,20 @@ _answer_hallucination_prompt = """
 
 出力の幻覚を評価するために、以下のコンテキストを使用してください：
 <context>
-{{context}}
+{context}
 </context>
 
 <input>
-{{inputs}}
+{input}
 </input>
 
 <output>
-{{outputs}}
+{output}
 </output>
 
 利用可能な場合は、以下の参照出力も回答の幻覚を特定するのに役立てることができます：
 <reference_outputs>
-{{reference_outputs}}
+{reference_outputs}
 </reference_outputs>
 """.strip()
 
