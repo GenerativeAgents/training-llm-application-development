@@ -1,6 +1,6 @@
 import streamlit as st
 from dotenv import load_dotenv
-from langchain_openai import ChatOpenAI
+from langchain.chat_models import init_chat_model
 
 from app.documentation_agent.agent import DocumentationAgent, InterviewState
 
@@ -34,7 +34,11 @@ def app() -> None:
         return
 
     # ChatOpenAIモデルを初期化
-    llm = ChatOpenAI(model=model_name, temperature=temperature)
+    llm = init_chat_model(
+        model=model_name,
+        model_provider="openai",
+        temperature=temperature,
+    )
     agent = DocumentationAgent(llm=llm, k=persona_count)
     # エージェントを実行して最終的な出力を取得
     initial_state = InterviewState(user_request=user_request)
