@@ -7,7 +7,7 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langsmith import traceable
 
-from app.advanced_rag.chains.base import AnswerToken, BaseRAGChain, Context
+from app.advanced_rag.chains.base import AnswerToken, BaseRAGChain, Context, reduce_fn
 
 _hypothetical_prompt_template = """\
 次の質問に回答する一文を書いてください。
@@ -48,7 +48,7 @@ class HyDERAGChain(BaseRAGChain):
         )
         self.generate_answer_chain = generate_answer_prompt | model | StrOutputParser()
 
-    @traceable(name="hyde")
+    @traceable(name="hyde", reduce_fn=reduce_fn)
     def stream(self, question: str) -> Generator[Context | AnswerToken, None, None]:
         # 仮説的な回答を生成する
         hypothetical_answer = self.hypothetical_chain.invoke({"question": question})

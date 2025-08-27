@@ -112,8 +112,9 @@ def app() -> None:
             comment = feedback.get("text")
 
             client = Client()
+            root_run_id = client.read_run(run_id).trace_id
             client.create_feedback(
-                run_id=run_id,
+                run_id=root_run_id,
                 key="thumbs",
                 score=score,
                 comment=comment,

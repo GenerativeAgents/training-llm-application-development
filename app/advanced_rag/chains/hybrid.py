@@ -12,7 +12,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableParallel
 from langsmith import traceable
 
-from app.advanced_rag.chains.base import AnswerToken, BaseRAGChain, Context
+from app.advanced_rag.chains.base import AnswerToken, BaseRAGChain, Context, reduce_fn
 
 _generate_answer_prompt_template = '''
 以下の文脈だけを踏まえて質問に回答してください。
@@ -81,7 +81,7 @@ class HybridRAGChain(BaseRAGChain):
         )
         self.generate_answer_chain = generate_answer_prompt | model | StrOutputParser()
 
-    @traceable(name="hybrid")
+    @traceable(name="hybrid", reduce_fn=reduce_fn)
     def stream(self, question: str) -> Generator[Context | AnswerToken, None, None]:
         # 並列で検索する準備
         parallel_retriever = RunnableParallel(
