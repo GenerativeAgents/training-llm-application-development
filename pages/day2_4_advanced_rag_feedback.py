@@ -3,8 +3,8 @@ from typing import Sequence
 import streamlit as st
 from dotenv import load_dotenv
 from langchain.callbacks import collect_runs
+from langchain.chat_models import init_chat_model
 from langchain_core.documents import Document
-from langchain_openai import ChatOpenAI
 from langsmith import Client
 from pydantic import BaseModel
 from streamlit_feedback import streamlit_feedback  # type: ignore[import-untyped]
@@ -42,11 +42,9 @@ def app() -> None:
         )
 
     with st.sidebar:
-        model_name = st.selectbox(
-            label="モデル", options=["gpt-4.1-nano", "gpt-4.1-mini", "gpt-4.1"]
-        )
-        temperature = st.slider(
-            label="temperature", min_value=0.0, max_value=1.0, value=0.0
+        reasoning_effort = st.selectbox(
+            label="reasoning_effort",
+            options=["minimal", "low", "medium", "high"],
         )
         chain_name = st.selectbox(
             label="RAG Chain Type",
@@ -65,7 +63,11 @@ def app() -> None:
         st.session_state.state.question = question
 
         # 回答を生成して表示
-        model = ChatOpenAI(model=model_name, temperature=temperature)
+        model = init_chat_model(
+            model="gpt-5-nano",
+            model_provider="openai",
+            reasoning_effort=reasoning_effort,
+        )
         chain = create_rag_chain(chain_name=chain_name, model=model)
 
         with collect_runs() as cb:

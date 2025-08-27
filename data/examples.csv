@@ -1,2 +1,3 @@
-question,context,answer
+﻿question,context,answer
 LangChainとは,tmp/langchain/docs/docs/introduction.mdx,LangChainはLLMアプリケーション開発のフレームワークです。
+LangSmithとは,tmp/langchain/docs/docs/concepts/evaluation.mdx,LangSmithはLLM アプリケーションの観察性と評価を支援するプラットフォームです。
