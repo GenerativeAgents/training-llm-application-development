@@ -1,4 +1,3 @@
-import sqlite3
 from typing import Annotated, Any, Literal
 from uuid import uuid4
 
@@ -9,7 +8,7 @@ from langchain_community.tools import ShellTool
 from langchain_community.tools.tavily_search import TavilySearchResults
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
 from langgraph.checkpoint.base import BaseCheckpointSaver
-from langgraph.checkpoint.sqlite import SqliteSaver
+from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode
@@ -170,8 +169,7 @@ def app(thread_id: str | None = None) -> None:
 
     # st.session_stateにagentを保存
     if "human_in_the_loop_ui_state" not in st.session_state:
-        conn = sqlite3.connect("tmp/checkpoints.sqlite", check_same_thread=False)
-        checkpointer = SqliteSaver(conn=conn)
+        checkpointer = MemorySaver()
         st.session_state.human_in_the_loop_ui_state = UIState(
             agent=Agent(checkpointer=checkpointer),
             thread_id=thread_id,
@@ -216,5 +214,4 @@ def app(thread_id: str | None = None) -> None:
             st.rerun()
 
 
-if __name__ == "__main__":
-    app()
+app()

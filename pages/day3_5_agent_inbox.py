@@ -2,10 +2,10 @@ import sqlite3
 
 import streamlit as st
 from langgraph.checkpoint.sqlite import SqliteSaver
-from langgraph.types import Interrupt, RunnableConfig
+from langgraph.types import Command, Interrupt, RunnableConfig
 from pydantic import BaseModel
 
-from pages.day3_3_human_in_the_loop import app as human_in_the_loop_app
+from pages.day3_4_form import create_graph
 
 
 class UIState(BaseModel):
@@ -14,7 +14,8 @@ class UIState(BaseModel):
 
 class InterruptThread(BaseModel):
     thread_id: str
-    thread_title: str
+    question: str
+    draft_answer: str
     interrupts: list[Interrupt]
 
 
@@ -40,16 +41,17 @@ def get_interrupt_threads(checkpointer: SqliteSaver) -> list[InterruptThread]:
         config = RunnableConfig(configurable={"thread_id": thread_id})
         checkpoint_tuples = checkpointer.list(config)
         last_checkpoint_tuple = next(checkpoint_tuples)
-        first_human_message = last_checkpoint_tuple.checkpoint["channel_values"][
-            "messages"
-        ][0].content
+        last_checkpoint_state = last_checkpoint_tuple.checkpoint["channel_values"]
+        question = last_checkpoint_state["question"]
+        draft_answer = last_checkpoint_state["draft_answer"]
         pending_writes = last_checkpoint_tuple.pending_writes
 
         if pending_writes and pending_writes[0][1] == "__interrupt__":
             interrupts = pending_writes[0][2]
             interrupt_thread = InterruptThread(
                 thread_id=thread_id,
-                thread_title=first_human_message,
+                question=question,
+                draft_answer=draft_answer,
                 interrupts=interrupts,
             )
             interrupt_threads.append(interrupt_thread)
@@ -58,7 +60,7 @@ def get_interrupt_threads(checkpointer: SqliteSaver) -> list[InterruptThread]:
 
 
 def app() -> None:
-    st.title("Toy Agent Inbox")
+    st.title("Inbox")
 
     conn = sqlite3.connect("tmp/checkpoints.sqlite", check_same_thread=False)
     checkpointer = SqliteSaver(conn=conn)
@@ -72,21 +74,48 @@ def app() -> None:
     col1, col2 = st.columns(2)
 
     with col1:
-        st.subheader("Interrupt Threads")
+        st.subheader("人間への確認依頼一覧")
         for interrupt_thread in interrupt_threads:
             with st.container(border=True):
-                st.subheader(interrupt_thread.thread_title)
-                st.write(f"thread_id: {interrupt_thread.thread_id}")
-                clicked = st.button("詳細", key=interrupt_thread.thread_id)
+                st.write(interrupt_thread.question)
+                clicked = st.button("対応する", key=interrupt_thread.thread_id)
                 if clicked:
                     ui_state.selected_thread_id = interrupt_thread.thread_id
 
     with col2:
         if ui_state.selected_thread_id is None:
-            st.info("スレッドを選択してください")
+            st.info("確認依頼を選択してください")
             return
         else:
-            human_in_the_loop_app(thread_id=ui_state.selected_thread_id)
+            st.subheader("回答調整欄")
+
+            intrrupt_thread: InterruptThread = next(
+                filter(
+                    lambda t: t.thread_id == ui_state.selected_thread_id,
+                    interrupt_threads,
+                )
+            )
+            st.write("### 質問")
+            st.write(intrrupt_thread.question)
+            st.write("### 回答ドラフト")
+            final_answer = st.text_area(
+                "回答", value=intrrupt_thread.draft_answer, height=400
+            )
+
+            submit = st.button("回答送信")
+
+            if not final_answer or not submit:
+                return
+
+            thread_id = intrrupt_thread.thread_id
+            config = {"configurable": {"thread_id": thread_id}}
+            graph = create_graph()
+            graph.invoke(Command(resume=final_answer), config=config)
+
+            st.info("回答を送信しました。")
+
+            ui_state.selected_thread_id = None
+            st.rerun()
 
 
 app()
