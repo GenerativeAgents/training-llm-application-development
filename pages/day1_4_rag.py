@@ -7,6 +7,7 @@ from langchain.embeddings import init_embeddings
 from langchain_chroma import Chroma
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
+from langsmith import traceable
 
 _prompt_template = '''
 以下の文脈だけを踏まえて質問に回答してください。
@@ -19,6 +20,7 @@ _prompt_template = '''
 '''
 
 
+@traceable
 def stream_rag(query: str) -> Iterator[str]:
     embeddings = init_embeddings(model="text-embedding-3-small", provider="openai")
     vector_store = Chroma(
