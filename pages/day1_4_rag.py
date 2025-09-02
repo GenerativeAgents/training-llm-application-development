@@ -24,7 +24,7 @@ _prompt_template = '''
 def stream_rag(query: str) -> Iterator[str]:
     embeddings = init_embeddings(model="text-embedding-3-small", provider="openai")
     vector_store = Chroma(
-        embedding_function=embeddings,
+        embedding_function=embeddings,  # type: ignore[arg-type]
         persist_directory="./tmp/chroma",
     )
 
@@ -40,7 +40,8 @@ def stream_rag(query: str) -> Iterator[str]:
 
     documents = retriever.invoke(query)
     chain = prompt | model | StrOutputParser()
-    return chain.stream({"question": query, "context": documents})
+    for chunk in chain.stream({"question": query, "context": documents}):
+        yield chunk
 
 
 def app() -> None:
