@@ -23,7 +23,7 @@ def create_agent(model_name: str, reasoning_effort: str) -> CompiledStateGraph:
     retriever_tool = create_retriever_tool(
         retriever=retriever,
         name="langchain-retriever",
-        description="Retriever for langchain documents",
+        description="LangChainの最新ドキュメントを検索します",
     )
     # 注意:
     # 講座ではAIエージェントにできることを分かりやすく理解するためにShellToolを使用します。
@@ -109,18 +109,21 @@ def app() -> None:
 
     # 応答を生成
     agent = create_agent(model_name=model_name, reasoning_effort=reasoning_effort)
+
+    # 新しいメッセージのみを追跡
+    new_messages = []
     for s in agent.stream({"messages": messages}, stream_mode="values"):  # type: ignore[assignment]
-        last_message = s["messages"][-1]
+        # ストリームから全メッセージを取得
+        all_messages = s["messages"]
 
-        # ユーザーの入力はスキップ
-        if isinstance(last_message, HumanMessage):
-            continue
+        # 既存のメッセージ数以降の新しいメッセージのみを処理
+        for msg in all_messages[len(messages) :]:
+            if msg not in new_messages:
+                new_messages.append(msg)
+                show_message(msg)
 
-        # 応答を表示
-        show_message(last_message)
-
-        # 会話履歴に追加
-        messages.append(last_message)
+    # 新しいメッセージのみを履歴に追加
+    messages.extend(new_messages)
 
 
 app()
