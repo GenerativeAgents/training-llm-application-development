@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
 from langchain.embeddings import init_embeddings
 from langchain_chroma import Chroma
-from langchain_core.output_parsers import StrOutputParser
+from langchain_core.messages import BaseMessageChunk
 from langchain_core.prompts import ChatPromptTemplate
 from langsmith import traceable
 
@@ -21,7 +21,7 @@ _prompt_template = '''
 
 
 @traceable
-def stream_rag(query: str, reasoning_effort: str) -> Iterator[str]:
+def stream_rag(query: str, reasoning_effort: str) -> Iterator[BaseMessageChunk]:
     embeddings = init_embeddings(model="text-embedding-3-small", provider="openai")
     vector_store = Chroma(
         embedding_function=embeddings,  # type: ignore[arg-type]
@@ -39,9 +39,8 @@ def stream_rag(query: str, reasoning_effort: str) -> Iterator[str]:
     )
 
     documents = retriever.invoke(query)
-    chain = prompt | model | StrOutputParser()
-    for chunk in chain.stream({"question": query, "context": documents}):
-        yield chunk
+    prompt_value = prompt.invoke({"question": query, "context": documents})
+    return model.stream(prompt_value)
 
 
 def app() -> None:
