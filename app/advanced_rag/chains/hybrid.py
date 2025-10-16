@@ -7,8 +7,6 @@ from langchain_community.document_loaders import DirectoryLoader, TextLoader
 from langchain_community.retrievers import BM25Retriever
 from langchain_core.documents import Document
 from langchain_core.language_models import BaseChatModel
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableParallel
 from langsmith import traceable
 
@@ -54,6 +52,8 @@ def _reciprocal_rank_fusion(
 
 class HybridRAGChain(BaseRAGChain):
     def __init__(self, model: BaseChatModel):
+        self.model = model
+
         # Embeddingモデルを使ったベクトル検索の準備
         embeddings = init_embeddings(model="text-embedding-3-small", provider="openai")
         vector_store = Chroma(
@@ -74,12 +74,6 @@ class HybridRAGChain(BaseRAGChain):
         self.bm25_retriever = BM25Retriever.from_documents(documents, k=10).with_config(
             {"run_name": "bm25_retriever"}
         )
-
-        # 回答生成のChainの準備
-        generate_answer_prompt = ChatPromptTemplate.from_template(
-            _generate_answer_prompt_template
-        )
-        self.generate_answer_chain = generate_answer_prompt | model | StrOutputParser()
 
     @traceable(name="hybrid", reduce_fn=reduce_fn)
     def stream(self, question: str) -> Generator[Context | AnswerToken, None, None]:
@@ -102,10 +96,12 @@ class HybridRAGChain(BaseRAGChain):
         yield Context(documents=documents)
 
         # 回答を生成して徐々に応答を返す
-        for chunk in self.generate_answer_chain.stream(
-            {"context": documents, "question": question}
-        ):
-            yield AnswerToken(token=chunk)
+        generate_answer_prompt = _generate_answer_prompt_template.format(
+            context=documents,
+            question=question,
+        )
+        for chunk in self.model.stream(generate_answer_prompt):
+            yield AnswerToken(token=chunk.content)
 
 
 def create_hybrid_rag_chain(model: BaseChatModel) -> BaseRAGChain:
