@@ -26,7 +26,8 @@ def stream_llm(messages: list[BaseMessage]) -> Iterator[BaseMessageChunk]:
     )
 
     prompt_value = prompt.invoke({"messages": messages})
-    return model.stream(prompt_value)
+    for chunk in model.stream(prompt_value):
+        yield chunk
 
 
 def app() -> None:

@@ -40,7 +40,8 @@ def stream_rag(query: str, reasoning_effort: str) -> Iterator[BaseMessageChunk]:
 
     documents = retriever.invoke(query)
     prompt_value = prompt.invoke({"question": query, "context": documents})
-    return model.stream(prompt_value)
+    for chunk in model.stream(prompt_value):
+        yield chunk
 
 
 def app() -> None:
