@@ -4,8 +4,8 @@ from uuid import uuid4
 import streamlit as st
 from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
-from langchain_community.tools.tavily_search import TavilySearchResults
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
+from langchain_tavily import TavilySearch
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
@@ -26,7 +26,7 @@ class Agent:
             model_provider="openai",
             temperature=1,
         )
-        self.tools = [TavilySearchResults()]
+        self.tools = [TavilySearch()]
 
         graph_builder = StateGraph(State)
         graph_builder.add_node("llm_node", self._llm_node)
