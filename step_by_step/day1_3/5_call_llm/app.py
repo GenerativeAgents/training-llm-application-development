@@ -2,7 +2,6 @@ import streamlit as st
 from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
-from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
 
@@ -18,8 +17,9 @@ def invoke_llm(messages: list[BaseMessage]) -> str:
         model_provider="openai",
         reasoning_effort="minimal",
     )
-    chain = prompt | model | StrOutputParser()
-    return chain.invoke({"messages": messages})
+    prompt_value = prompt.invoke({"messages": messages})
+    ai_message = model.invoke(prompt_value)
+    return ai_message.content
 
 
 def app() -> None:

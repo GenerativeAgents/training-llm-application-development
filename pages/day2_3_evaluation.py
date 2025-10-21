@@ -6,7 +6,6 @@ from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
 from langchain_core.documents import Document
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import Runnable
 from langsmith.evaluation import evaluate
 from pydantic import BaseModel, Field
 
@@ -123,10 +122,9 @@ def answer_hallucination(
         model_provider="openai",
         reasoning_effort="minimal",
     )
-    chain: Runnable[dict[str, Any], AnswerHallucinationOutput] = (
-        prompt | model.with_structured_output(AnswerHallucinationOutput)  # type: ignore[assignment]
-    )
-    output = chain.invoke(
+    model_with_structure = model.with_structured_output(AnswerHallucinationOutput)
+
+    prompt_value = prompt.invoke(
         {
             "input": inputs["question"],
             "context": outputs["context"],
@@ -134,6 +132,7 @@ def answer_hallucination(
             "reference_outputs": reference_outputs["answer"],
         }
     )
+    output: AnswerHallucinationOutput = model_with_structure.invoke(prompt_value)  # type: ignore[assignment]
 
     # ハルシネーションのある場合は0、ない場合は1を返す
     if output.hallucination:

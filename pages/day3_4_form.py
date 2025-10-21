@@ -5,7 +5,6 @@ import streamlit as st
 from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import Runnable
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
@@ -26,24 +25,21 @@ class DraftAnswer(BaseModel):
 
 
 def draft_node(state: State) -> dict:
-    llm = init_chat_model(
-        model="gpt-5-nano",
-        model_provider="openai",
-        reasoning_effort="minimal",
-    )
-
     prompt = ChatPromptTemplate.from_messages(
         [
             ("system", "ユーザーの質問への解答案を作成してください。"),
             ("user", "{question}"),
         ]
     )
+    model = init_chat_model(
+        model="gpt-5-nano",
+        model_provider="openai",
+        reasoning_effort="minimal",
+    )
+    model_with_structure = model.with_structured_output(DraftAnswer)
 
-    chain: Runnable[dict[str, str], DraftAnswer] = prompt | llm.with_structured_output(
-        DraftAnswer
-    )  # type: ignore[assignment]
-
-    output = chain.invoke({"question": state["question"]})
+    prompt_value = prompt.invoke({"question": state["question"]})
+    output: DraftAnswer = model_with_structure.invoke(prompt_value)  # type: ignore[assignment]
 
     return {"draft_answer": output.answer}
 
