@@ -20,7 +20,12 @@ _prompt_template = '''
 '''
 
 
-@traceable
+def reduce_fn(outputs):
+    """ストリーミング出力をLangSmithのトレースエントリで1つにまとめる"""
+    return "".join(str(chunk.content) for chunk in outputs)
+
+
+@traceable(run_type="chain", reduce_fn=reduce_fn)
 def stream_rag(query: str, reasoning_effort: str) -> Iterator[BaseMessageChunk]:
     embeddings = init_embeddings(model="text-embedding-3-small", provider="openai")
     vector_store = Chroma(
