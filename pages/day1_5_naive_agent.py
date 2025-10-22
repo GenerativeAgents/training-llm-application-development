@@ -1,19 +1,20 @@
 import streamlit as st
 from dotenv import load_dotenv
+from langchain.agents import create_agent
 from langchain.chat_models import init_chat_model
 from langchain_chroma import Chroma
-from langchain_community.tools.tavily_search import TavilySearchResults
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
 from langchain_core.tools import create_retriever_tool
 from langchain_openai import OpenAIEmbeddings
+from langchain_tavily import TavilySearch
 from langgraph.graph.state import CompiledStateGraph
-from langgraph.prebuilt import create_react_agent
 
 # from langchain_community.tools import ShellTool
-# from langchain_core.tools import tool
 
 
-def create_agent(model_name: str, reasoning_effort: str) -> CompiledStateGraph:
+def create_agent_with_tools(
+    model_name: str, reasoning_effort: str
+) -> CompiledStateGraph:
     embedding = OpenAIEmbeddings(model="text-embedding-3-small")
     vector_store = Chroma(
         embedding_function=embedding,
@@ -31,7 +32,7 @@ def create_agent(model_name: str, reasoning_effort: str) -> CompiledStateGraph:
     # 実際にShellToolの使用を検討する際は、AIエージェントが動作する環境などに十分な注意が必要です。
     tools = [
         retriever_tool,
-        TavilySearchResults(max_results=5),
+        TavilySearch(max_results=5),
         # ShellTool(),
     ]
 
@@ -40,7 +41,7 @@ def create_agent(model_name: str, reasoning_effort: str) -> CompiledStateGraph:
         model_provider="openai",
         reasoning_effort=reasoning_effort,
     )
-    return create_react_agent(model=model, tools=tools)
+    return create_agent(model=model, tools=tools)
 
 
 def show_message(message: BaseMessage) -> None:
@@ -108,7 +109,10 @@ def app() -> None:
     messages.append(HumanMessage(content=human_message))
 
     # 応答を生成
-    agent = create_agent(model_name=model_name, reasoning_effort=reasoning_effort)
+    agent = create_agent_with_tools(
+        model_name=model_name,
+        reasoning_effort=reasoning_effort,
+    )
 
     # 新しいメッセージのみを追跡
     new_messages = []
