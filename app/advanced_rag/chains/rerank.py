@@ -1,8 +1,9 @@
+from copy import deepcopy
 from typing import Generator, Sequence
 
+import cohere
 from langchain.embeddings import init_embeddings
 from langchain_chroma import Chroma
-from langchain_cohere import CohereRerank
 from langchain_core.documents import Document
 from langchain_core.language_models import BaseChatModel
 from langsmith import traceable
@@ -24,11 +25,24 @@ _generate_answer_prompt_template = '''
 def _rerank(
     question: str, documents: Sequence[Document], top_n: int
 ) -> Sequence[Document]:
-    cohere_reranker = CohereRerank(
+    documents_str = [doc.page_content for doc in documents]
+
+    client = cohere.ClientV2()
+    response = client.rerank(
         model="rerank-v3.5",
+        query=question,
+        documents=documents_str,
         top_n=top_n,
     )
-    return cohere_reranker.compress_documents(documents=documents, query=question)
+
+    reranked_documents: list[Document] = []
+    for result in response.results:
+        doc = documents[result.index]
+        doc_copy = Document(doc.page_content, metadata=deepcopy(doc.metadata))
+        doc_copy.metadata["relevance_score"] = result.relevance_score
+        reranked_documents.append(doc_copy)
+
+    return reranked_documents
 
 
 class RerankRAGChain(BaseRAGChain):

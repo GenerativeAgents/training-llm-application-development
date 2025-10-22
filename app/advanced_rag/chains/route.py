@@ -12,7 +12,7 @@ from app.advanced_rag.chains.base import AnswerToken, BaseRAGChain, Context, red
 
 
 class Route(str, Enum):
-    langchain_document = "langchain_document"
+    langsmith_document = "langsmith_document"
     web = "web"
 
 
@@ -22,7 +22,7 @@ class RouteOutput(BaseModel):
 
 _route_prompt_template = """\
 質問に回答するために適切なRetrieverを選択してください。
-用意しているのは、LangChainに関する情報を検索する「langchain_document」と、
+用意しているのは、LangSmithに関する情報を検索する「langsmith_document」と、
 それ以外の質問をWebサイトで検索するための「web」です。
 
 質問: {question}
@@ -49,9 +49,9 @@ class RouteRAGChain(BaseRAGChain):
             embedding_function=embeddings,
             persist_directory="./tmp/chroma",
         )
-        self.langchain_document_retriever = vector_store.as_retriever(
+        self.langsmith_document_retriever = vector_store.as_retriever(
             search_kwargs={"k": 5}
-        ).with_config({"run_name": "langchain_document_retriever"})
+        ).with_config({"run_name": "langsmith_document_retriever"})
 
         # Web検索の準備
         self.web_retriever = TavilySearchAPIRetriever(k=5).with_config(
@@ -67,8 +67,8 @@ class RouteRAGChain(BaseRAGChain):
         route = route_output.route
 
         # ルーティングに応じて検索
-        if route == Route.langchain_document:
-            documents = self.langchain_document_retriever.invoke(question)
+        if route == Route.langsmith_document:
+            documents = self.langsmith_document_retriever.invoke(question)
         elif route == Route.web:
             documents = self.web_retriever.invoke(question)
 

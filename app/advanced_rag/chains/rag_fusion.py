@@ -1,10 +1,10 @@
 from typing import Generator
 
 from langchain.embeddings import init_embeddings
-from langchain.load import dumps, loads
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
 from langchain_core.language_models import BaseChatModel
+from langchain_core.load import dumps, loads
 from langsmith import traceable
 from pydantic import BaseModel, Field
 
