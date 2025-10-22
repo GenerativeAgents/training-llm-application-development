@@ -20,8 +20,13 @@ _prompt_template = '''
 '''
 
 
-@traceable
-def stream_rag(query: str) -> Iterator[BaseMessageChunk]:
+def reduce_fn(outputs):
+    """ストリーミング出力をLangSmithのトレースエントリで1つにまとめる"""
+    return "".join(str(chunk.content) for chunk in outputs)
+
+
+@traceable(reduce_fn=reduce_fn)
+def stream_rag(query: str, reasoning_effort: str) -> Iterator[BaseMessageChunk]:
     embeddings = init_embeddings(model="text-embedding-3-small", provider="openai")
     vector_store = Chroma(
         embedding_function=embeddings,  # type: ignore[arg-type]
@@ -35,7 +40,7 @@ def stream_rag(query: str) -> Iterator[BaseMessageChunk]:
     model = init_chat_model(
         model="gpt-5-nano",
         model_provider="openai",
-        reasoning_effort="minimal",
+        reasoning_effort=reasoning_effort,
     )
 
     documents = retriever.invoke(query)
@@ -47,6 +52,12 @@ def stream_rag(query: str) -> Iterator[BaseMessageChunk]:
 def app() -> None:
     load_dotenv(override=True)
 
+    with st.sidebar:
+        reasoning_effort = st.selectbox(
+            label="reasoning_effort",
+            options=["minimal", "low", "medium", "high"],
+        )
+
     st.title("RAG")
 
     # ユーザーの質問を受け付ける
@@ -55,7 +66,7 @@ def app() -> None:
         return
 
     # 回答を生成して表示
-    stream = stream_rag(question)
+    stream = stream_rag(question, reasoning_effort)
     st.write_stream(stream)
 
 
