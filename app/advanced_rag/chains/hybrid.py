@@ -1,12 +1,12 @@
 from typing import Generator
 
 from langchain.embeddings import init_embeddings
-from langchain.load import dumps, loads
 from langchain_chroma import Chroma
 from langchain_community.document_loaders import DirectoryLoader, TextLoader
 from langchain_community.retrievers import BM25Retriever
 from langchain_core.documents import Document
 from langchain_core.language_models import BaseChatModel
+from langchain_core.load import dumps, loads
 from langchain_core.runnables import RunnableParallel
 from langsmith import traceable
 
@@ -66,7 +66,7 @@ class HybridRAGChain(BaseRAGChain):
 
         # BM25を使った検索の準備
         loader = DirectoryLoader(
-            path="tmp/langchain",
+            path="tmp/langchain-docs/src/langsmith/",
             glob="**/*.mdx",
             loader_cls=TextLoader,
         )

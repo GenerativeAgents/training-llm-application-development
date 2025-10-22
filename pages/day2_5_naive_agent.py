@@ -31,8 +31,8 @@ def create_agent_with_tools(
     retriever = vector_store.as_retriever()
     retriever_tool = create_retriever_tool(
         retriever=retriever,
-        name="langchain-retriever",
-        description="LangChainの最新ドキュメントを検索します",
+        name="langsmith-retriever",
+        description="LangSmithの最新ドキュメントを検索します。LangSmithについて質問された場合に使用してください。",
     )
     # 注意:
     # 講座ではAIエージェントにできることを分かりやすく理解するためにShellToolを使用します。

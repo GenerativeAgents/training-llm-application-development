@@ -17,8 +17,8 @@ def app() -> None:
 
     # ロード
     loader = DirectoryLoader(
-        # ../tmp/langchain ではないので注意
-        path="./tmp/langchain",
+        # ../tmp/langchain-docs/src/langsmith/ ではないので注意
+        path="./tmp/langchain-docs/src/langsmith/",
         glob="**/*.mdx",
         loader_cls=TextLoader,
     )
