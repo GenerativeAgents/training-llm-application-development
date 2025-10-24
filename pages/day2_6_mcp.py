@@ -9,6 +9,10 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMe
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.graph.state import CompiledStateGraph
 
+system_prompt = """
+GitHubで管理されているOSSについて質問された場合はask_questionツールを使用して回答してください。
+"""
+
 
 async def create_agent_with_tools(
     model_name: str, reasoning_effort: str
@@ -27,6 +31,10 @@ async def create_agent_with_tools(
                 ],
                 "transport": "stdio",
             },
+            "deepwiki": {
+                "url": "https://mcp.deepwiki.com/mcp",
+                "transport": "streamable_http",
+            },
         },
     )
     tools = await client.get_tools()
@@ -36,7 +44,7 @@ async def create_agent_with_tools(
         model_provider="openai",
         reasoning_effort=reasoning_effort,
     )
-    return create_agent(model=model, tools=tools)
+    return create_agent(model=model, tools=tools, system_prompt=system_prompt)
 
 
 def show_message(message: BaseMessage) -> None:
