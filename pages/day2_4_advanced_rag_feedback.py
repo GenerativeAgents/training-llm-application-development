@@ -2,9 +2,9 @@ from typing import Sequence
 
 import streamlit as st
 from dotenv import load_dotenv
-from langchain.callbacks import collect_runs
 from langchain.chat_models import init_chat_model
 from langchain_core.documents import Document
+from langchain_core.tracers.context import collect_runs
 from langsmith import Client
 from pydantic import BaseModel
 from streamlit_feedback import streamlit_feedback  # type: ignore[import-untyped]

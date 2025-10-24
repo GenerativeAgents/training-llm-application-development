@@ -167,3 +167,4 @@ tmp/*
 app/agent_design_pattern/tmp/*
 !app/agent_design_pattern/tmp/.gitkeep
 
+.serena/
