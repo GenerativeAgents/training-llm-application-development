@@ -7,11 +7,10 @@ uv run python -m app.documentation_agent.agent --task "スマートフォン向�
 """
 
 import operator
-from typing import Annotated, Any, Optional
+from typing import Annotated, Any
 
 from dotenv import load_dotenv
 from langchain.chat_models.base import BaseChatModel
-from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from langgraph.graph import END, StateGraph
@@ -76,11 +75,11 @@ class InterviewState(BaseModel):
 # ペルソナを生成するクラス
 class PersonaGenerator:
     def __init__(self, llm: BaseChatModel, k: int = 5):
-        self.llm = llm.with_structured_output(Personas)
+        self.llm = llm
         self.k = k
 
     def run(self, user_request: str) -> Personas:
-        # プロンプトテンプレートを定義
+        # プロンプトの作成
         prompt = ChatPromptTemplate.from_messages(
             [
                 (
@@ -89,16 +88,17 @@ class PersonaGenerator:
                 ),
                 (
                     "human",
-                    f"以下のユーザーリクエストに関するインタビュー用に、{self.k}人の多様なペルソナを生成してください。\n\n"
+                    "以下のユーザーリクエストに関するインタビュー用に、{k}人の多様なペルソナを生成してください。\n\n"
                     "ユーザーリクエスト: {user_request}\n\n"
                     "各ペルソナには名前と簡単な背景を含めてください。年齢、性別、職業、技術的専門知識において多様性を確保してください。",
                 ),
             ]
         )
-        # ペルソナ生成のためのチェーンを作成
-        chain = prompt | self.llm
-        # ペルソナを生成
-        return chain.invoke({"user_request": user_request})  # type: ignore[return-value]
+        prompt_value = prompt.invoke({"k": self.k, "user_request": user_request})
+
+        # ペルソナの生成
+        llm_with_structure = self.llm.with_structured_output(Personas)
+        return llm_with_structure.invoke(prompt_value)  # type: ignore[return-value]
 
 
 # インタビューを実施するクラス
@@ -139,20 +139,21 @@ class InterviewConductor:
                 ),
             ]
         )
-        # 質問生成のためのチェーンを作成
-        question_chain = question_prompt | self.llm | StrOutputParser()
-
-        # 各ペルソナに対する質問クエリを作成
-        question_queries = [
-            {
-                "user_request": user_request,
-                "persona_name": persona.name,
-                "persona_background": persona.background,
-            }
+        # 質問生成のためのプロンプトを作成
+        prompt_values = [
+            question_prompt.invoke(
+                {
+                    "user_request": user_request,
+                    "persona_name": persona.name,
+                    "persona_background": persona.background,
+                }
+            )
             for persona in personas
         ]
+
         # 質問をバッチ処理で生成
-        return question_chain.batch(question_queries)
+        ai_messages = self.llm.batch(prompt_values)  # type: ignore[arg-type]
+        return [ai_message.content for ai_message in ai_messages]  # type: ignore[misc]
 
     def _generate_answers(
         self, personas: list[Persona], questions: list[str]
@@ -167,20 +168,21 @@ class InterviewConductor:
                 ("human", "質問: {question}"),
             ]
         )
-        # 回答生成のためのチェーンを作成
-        answer_chain = answer_prompt | self.llm | StrOutputParser()
-
-        # 各ペルソナに対する回答クエリを作成
-        answer_queries = [
-            {
-                "persona_name": persona.name,
-                "persona_background": persona.background,
-                "question": question,
-            }
+        # 回答生成のためのプロンプトを作成
+        prompt_values = [
+            answer_prompt.invoke(
+                {
+                    "persona_name": persona.name,
+                    "persona_background": persona.background,
+                    "question": question,
+                }
+            )
             for persona, question in zip(personas, questions)
         ]
-        # 回答をバッチ処理で生成
-        return answer_chain.batch(answer_queries)
+
+        # 回答生成のためのチェーンを作成
+        ai_messages = self.llm.batch(prompt_values)  # type: ignore[arg-type]
+        return [ai_message.content for ai_message in ai_messages]  # type: ignore[misc]
 
     def _create_interviews(
         self, personas: list[Persona], questions: list[str], answers: list[str]
@@ -195,7 +197,7 @@ class InterviewConductor:
 # 情報の十分性を評価するクラス
 class InformationEvaluator:
     def __init__(self, llm: BaseChatModel):
-        self.llm = llm.with_structured_output(EvaluationResult)
+        self.llm = llm
 
     # ユーザーリクエストとインタビュー結果を基に情報の十分性を評価
     def run(self, user_request: str, interviews: list[Interview]) -> EvaluationResult:
@@ -214,10 +216,8 @@ class InformationEvaluator:
                 ),
             ]
         )
-        # 情報の十分性を評価するチェーンを作成
-        chain = prompt | self.llm
-        # 評価結果を返す
-        return chain.invoke(
+        # 情報の十分性を評価するためのプロンプトを作成
+        prompt_value = prompt.invoke(
             {
                 "user_request": user_request,
                 "interview_results": "\n".join(
@@ -226,7 +226,11 @@ class InformationEvaluator:
                     for i in interviews
                 ),
             }
-        )  # type: ignore[return-value]
+        )
+
+        # 情報の十分性を評価
+        llm_with_structure = self.llm.with_structured_output(EvaluationResult)
+        return llm_with_structure.invoke(prompt_value)  # type: ignore[return-value]
 
 
 # 要件定義書を生成するクラス
@@ -259,10 +263,8 @@ class RequirementsDocumentGenerator:
                 ),
             ]
         )
-        # 要件定義書を生成するチェーンを作成
-        chain = prompt | self.llm | StrOutputParser()
-        # 要件定義書を生成
-        return chain.invoke(
+        # 要件定義書を生成するためのプロンプトを作成
+        prompt_value = prompt.invoke(
             {
                 "user_request": user_request,
                 "interview_results": "\n".join(
@@ -271,12 +273,16 @@ class RequirementsDocumentGenerator:
                     for i in interviews
                 ),
             }
-        )  # type: ignore[return-value]
+        )
+
+        # 要件定義書を生成
+        ai_message = self.llm.invoke(prompt_value)
+        return ai_message.content  # type: ignore[return-value]
 
 
 # 要件定義書生成AIエージェントのクラス
 class DocumentationAgent:
-    def __init__(self, llm: BaseChatModel, k: Optional[int] = None):
+    def __init__(self, llm: BaseChatModel, k: int):
         # 各種ジェネレータの初期化
         self.persona_generator = PersonaGenerator(llm=llm, k=k)
         self.interview_conductor = InterviewConductor(llm=llm)
