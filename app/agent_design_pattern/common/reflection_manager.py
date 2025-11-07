@@ -6,11 +6,10 @@ from typing import Optional
 import faiss
 import numpy as np
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import OpenAIEmbeddings
 from pydantic import BaseModel, Field
-from retry import retry
-from settings import Settings
+
+from app.agent_design_pattern.settings import Settings
 
 settings = Settings()
 
@@ -109,35 +108,46 @@ class ReflectionManager:
             return []
 
 
+_task_reflector_prompt_template = """
+与えられたタスクの内容:
+{task}
+
+タスクを実行した結果:
+{result}
+
+あなたは高度な推論能力を持つAIエージェントです。上記のタスクを実行した結果を分析し、このタスクに対するあなたの取り組みが適切だったかどうかを内省してください。
+以下の項目に沿って、リフレクションの内容を出力してください。
+
+リフレクション:
+このタスクに取り組んだ際のあなたの思考プロセスや方法を振り返ってください。何か改善できる点はありましたか?
+次に同様のタスクに取り組む際に、より良い結果を出すための教訓を2〜3文程度で簡潔に述べてください。
+
+判定:
+- 結果の適切性: タスクの実行結果は適切だったと思いますか?あなたの判断を真偽値で示してください。
+- 判定の自信度: 上記の判断に対するあなたの自信の度合いを0から1までの小数で示してください。
+- 判定の理由: タスクの実行結果の適切性とそれに対する自信度について、判断に至った理由を簡潔に列挙してください。
+
+出力は必ず日本語で行ってください。
+Tips: Make sure to answer in the correct format.
+"""
+
+
 class TaskReflector:
     def __init__(self, llm: BaseChatModel, reflection_manager: ReflectionManager):
-        self.llm = llm.with_structured_output(Reflection)
+        self.llm = llm
         self.reflection_manager = reflection_manager
 
     def run(self, task: str, result: str) -> Reflection:
-        prompt = ChatPromptTemplate.from_template(
-            "与えられたタスクの内容:\n{task}\n\n"
-            "タスクを実行した結果:\n{result}\n\n"
-            "あなたは高度な推論能力を持つAIエージェントです。上記のタスクを実行した結果を分析し、このタスクに対するあなたの取り組みが適切だったかどうかを内省してください。\n"
-            "以下の項目に沿って、リフレクションの内容を出力してください。\n\n"
-            "リフレクション:\n"
-            "このタスクに取り組んだ際のあなたの思考プロセスや方法を振り返ってください。何か改善できる点はありましたか?\n"
-            "次に同様のタスクに取り組む際に、より良い結果を出すための教訓を2〜3文程度で簡潔に述べてください。\n\n"
-            "判定:\n"
-            "- 結果の適切性: タスクの実行結果は適切だったと思いますか?あなたの判断を真偽値で示してください。\n"
-            "- 判定の自信度: 上記の判断に対するあなたの自信の度合いを0から1までの小数で示してください。\n"
-            "- 判定の理由: タスクの実行結果の適切性とそれに対する自信度について、判断に至った理由を簡潔に列挙してください。\n\n"
-            "出力は必ず日本語で行ってください。\n\n"
-            "Tips: Make sure to answer in the correct format."
+        prompt = _task_reflector_prompt_template.format(
+            task=task,
+            result=result,
         )
 
-        chain = prompt | self.llm
+        llm_with_structure = self.llm.with_structured_output(Reflection).with_retry(
+            stop_after_attempt=5
+        )
 
-        @retry(tries=5)
-        def invoke_chain() -> Reflection:
-            return chain.invoke({"task": task, "result": result})
-
-        reflection = invoke_chain()
+        reflection: Reflection = llm_with_structure.invoke(prompt)  # type: ignore[assignment]
         reflection_id = self.reflection_manager.save_reflection(reflection)
         reflection.id = reflection_id
 
