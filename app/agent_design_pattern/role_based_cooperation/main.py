@@ -1,15 +1,18 @@
 import operator
 from typing import Annotated, Any
 
-from langchain_community.tools.tavily_search import TavilySearchResults
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import ChatPromptTemplate
+from langchain.agents import create_agent
+from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
+from langchain_tavily import TavilySearch
 from langgraph.graph import END, StateGraph
 from langgraph.graph.state import CompiledStateGraph
-from langgraph.prebuilt import create_react_agent
 from pydantic import BaseModel, Field
-from single_path_plan_generation.main import DecomposedTasks, QueryDecomposer
+
+from app.agent_design_pattern.single_path_plan_generation.main import (
+    DecomposedTasks,
+    QueryDecomposer,
+)
 
 
 class Role(BaseModel):
@@ -48,71 +51,100 @@ class Planner:
         return [Task(description=task, role=None) for task in decomposed_tasks.tasks]
 
 
+_role_assigner_system_prompt = "あなたは創造的な役割設計の専門家です。与えられたタスクに対して、ユニークで適切な役割を生成してください。"
+
+_role_assigner_human_prompt_template = """
+タスク:
+{tasks}
+
+これらのタスクに対して、以下の指示に従って役割を割り当ててください：
+1. 各タスクに対して、独自の創造的な役割を考案してください。既存の職業名や一般的な役割名にとらわれる必要はありません。
+2. 役割名は、そのタスクの本質を反映した魅力的で記憶に残るものにしてください。
+3. 各役割に対して、その役割がなぜそのタスクに最適なのかを説明する詳細な説明を提供してください。
+4. その役割が効果的にタスクを遂行するために必要な主要なスキルやアトリビュートを3つ挙げてください。
+
+創造性を発揮し、タスクの本質を捉えた革新的な役割を生成してください。
+""".strip()
+
+
 class RoleAssigner:
     def __init__(self, llm: ChatOpenAI):
-        self.llm = llm.with_structured_output(TasksWithRoles)
+        self.llm = llm
 
     def run(self, tasks: list[Task]) -> list[Task]:
-        prompt = ChatPromptTemplate(
-            [
-                (
-                    "system",
-                    (
-                        "あなたは創造的な役割設計の専門家です。与えられたタスクに対して、ユニークで適切な役割を生成してください。"
-                    ),
-                ),
-                (
-                    "human",
-                    (
-                        "タスク:\n{tasks}\n\n"
-                        "これらのタスクに対して、以下の指示に従って役割を割り当ててください：\n"
-                        "1. 各タスクに対して、独自の創造的な役割を考案してください。既存の職業名や一般的な役割名にとらわれる必要はありません。\n"
-                        "2. 役割名は、そのタスクの本質を反映した魅力的で記憶に残るものにしてください。\n"
-                        "3. 各役割に対して、その役割がなぜそのタスクに最適なのかを説明する詳細な説明を提供してください。\n"
-                        "4. その役割が効果的にタスクを遂行するために必要な主要なスキルやアトリビュートを3つ挙げてください。\n\n"
-                        "創造性を発揮し、タスクの本質を捉えた革新的な役割を生成してください。"
-                    ),
-                ),
-            ],
-        )
-        chain = prompt | self.llm
-        tasks_with_roles = chain.invoke(
-            {"tasks": "\n".join([task.description for task in tasks])}
-        )
+        tasks_str = "\n".join([task.description for task in tasks])
+        prompt = [
+            SystemMessage(content=_role_assigner_system_prompt),
+            HumanMessage(
+                content=_role_assigner_human_prompt_template.format(tasks=tasks_str)
+            ),
+        ]
+        llm_with_structure = self.llm.with_structured_output(TasksWithRoles)
+        tasks_with_roles: TasksWithRoles = llm_with_structure.invoke(prompt)  # type: ignore[assignment]
         return tasks_with_roles.tasks
+
+
+_executor_system_prompt_template = """
+あなたは{role_name}です。
+説明: {role_description}
+主要なスキル: {role_key_skills}
+あなたの役割に基づいて、与えられたタスクを最高の能力で遂行してください。
+""".strip()
+
+_executor_human_prompt_template = """
+以下のタスクを実行してください：
+{task_description}
+
+ここまでのタスクの実行結果:
+{results}
+""".strip()
 
 
 class Executor:
     def __init__(self, llm: ChatOpenAI):
         self.llm = llm
-        self.tools = [TavilySearchResults(max_results=3)]
-        self.base_agent = create_react_agent(self.llm, self.tools)
+        self.tools = [TavilySearch(max_results=3)]
 
     def run(self, task: Task, results: list[str]) -> str:
+        if task.role is None:
+            raise ValueError("タスクに役割が割り当てられていません")
+        system_prompt = _executor_system_prompt_template.format(
+            role_name=task.role.name,
+            role_description=task.role.description,
+            role_key_skills=", ".join(task.role.key_skills),
+        )
         results_str = "\n\n".join(
             f"Info {i + 1}:\n{result}" for i, result in enumerate(results)
         )
+        human_prompt = _executor_human_prompt_template.format(
+            task_description=task.description, results=results_str
+        )
+
+        self.base_agent: CompiledStateGraph = create_agent(
+            model=self.llm,
+            tools=self.tools,
+            system_prompt=system_prompt,
+        )
         result = self.base_agent.invoke(
-            {
-                "messages": [
-                    (
-                        "system",
-                        (
-                            f"あなたは{task.role.name}です。\n"
-                            f"説明: {task.role.description}\n"
-                            f"主要なスキル: {', '.join(task.role.key_skills)}\n"
-                            "あなたの役割に基づいて、与えられたタスクを最高の能力で遂行してください。"
-                        ),
-                    ),
-                    (
-                        "human",
-                        f"以下のタスクを実行してください：\n\n{task.description}\n\n"
-                        f"ここまでのタスクの実行結果:\n{results_str}",
-                    ),
-                ]
-            }
+            {"messages": [HumanMessage(content=human_prompt)]}
         )
         return result["messages"][-1].content
+
+
+_reporter_system_prompt = "あなたは総合的なレポート作成の専門家です。複数の情報源からの結果を統合し、洞察力に富んだ包括的なレポートを作成する能力があります。"
+_reporter_human_prompt_template = """
+タスク: 以下の情報に基づいて、包括的で一貫性のある回答を作成してください。
+要件:
+1. 提供されたすべての情報を統合し、よく構成された回答にしてください。
+2. 回答は元のクエリに直接応える形にしてください。
+3. 各情報の重要なポイントや発見を含めてください。
+4. 最後に結論や要約を提供してください。
+5. 回答は詳細でありながら簡潔にし、250〜300語程度を目指してください。
+6. 回答は日本語で行ってください。
+
+ユーザーの依頼: {query}
+収集した情報: {results}
+""".strip()
 
 
 class Reporter:
@@ -120,40 +152,20 @@ class Reporter:
         self.llm = llm
 
     def run(self, query: str, results: list[str]) -> str:
-        prompt = ChatPromptTemplate(
-            [
-                (
-                    "system",
-                    (
-                        "あなたは総合的なレポート作成の専門家です。複数の情報源からの結果を統合し、洞察力に富んだ包括的なレポートを作成する能力があります。"
-                    ),
-                ),
-                (
-                    "human",
-                    (
-                        "タスク: 以下の情報に基づいて、包括的で一貫性のある回答を作成してください。\n"
-                        "要件:\n"
-                        "1. 提供されたすべての情報を統合し、よく構成された回答にしてください。\n"
-                        "2. 回答は元のクエリに直接応える形にしてください。\n"
-                        "3. 各情報の重要なポイントや発見を含めてください。\n"
-                        "4. 最後に結論や要約を提供してください。\n"
-                        "5. 回答は詳細でありながら簡潔にし、250〜300語程度を目指してください。\n"
-                        "6. 回答は日本語で行ってください。\n\n"
-                        "ユーザーの依頼: {query}\n\n"
-                        "収集した情報:\n{results}"
-                    ),
-                ),
-            ],
+        results_str = "\n\n".join(
+            f"Info {i + 1}:\n{result}" for i, result in enumerate(results)
         )
-        chain = prompt | self.llm | StrOutputParser()
-        return chain.invoke(
-            {
-                "query": query,
-                "results": "\n\n".join(
-                    f"Info {i + 1}:\n{result}" for i, result in enumerate(results)
-                ),
-            }
-        )
+        prompt = [
+            SystemMessage(content=_reporter_system_prompt),
+            HumanMessage(
+                content=_reporter_human_prompt_template.format(
+                    query=query,
+                    results=results_str,
+                )
+            ),
+        ]
+        ai_message = self.llm.invoke(prompt)
+        return ai_message.content  # type: ignore[return-value]
 
 
 class RoleBasedCooperation:
@@ -216,7 +228,7 @@ class RoleBasedCooperation:
 def main():
     import argparse
 
-    from settings import Settings
+    from app.agent_design_pattern.settings import Settings
 
     settings = Settings()
     parser = argparse.ArgumentParser(

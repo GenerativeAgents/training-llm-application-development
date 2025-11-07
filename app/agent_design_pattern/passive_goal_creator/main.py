@@ -1,4 +1,3 @@
-from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
 
@@ -11,6 +10,18 @@ class Goal(BaseModel):
         return f"{self.description}"
 
 
+_prompt_template = """
+ユーザーの入力を分析し、明確で実行可能な目標を生成してください。
+要件:
+1. 目標は具体的かつ明確であり、実行可能なレベルで詳細化されている必要があります。
+2. あなたが実行可能な行動は以下の行動だけです。
+   - インターネットを利用して、目標を達成するための調査を行う。
+   - ユーザーのためのレポートを生成する。
+3. 決して2.以外の行動を取ってはいけません。
+ユーザーの入力: {query}
+""".strip()
+
+
 class PassiveGoalCreator:
     def __init__(
         self,
@@ -19,24 +30,15 @@ class PassiveGoalCreator:
         self.llm = llm
 
     def run(self, query: str) -> Goal:
-        prompt = ChatPromptTemplate.from_template(
-            "ユーザーの入力を分析し、明確で実行可能な目標を生成してください。\n"
-            "要件:\n"
-            "1. 目標は具体的かつ明確であり、実行可能なレベルで詳細化されている必要があります。\n"
-            "2. あなたが実行可能な行動は以下の行動だけです。\n"
-            "   - インターネットを利用して、目標を達成するための調査を行う。\n"
-            "   - ユーザーのためのレポートを生成する。\n"
-            "3. 決して2.以外の行動を取ってはいけません。\n"
-            "ユーザーの入力: {query}"
-        )
-        chain = prompt | self.llm.with_structured_output(Goal)
-        return chain.invoke({"query": query})
+        prompt = _prompt_template.format(query=query)
+        model_with_structure = self.llm.with_structured_output(Goal)
+        return model_with_structure.invoke(prompt)  # type: ignore[return-value]
 
 
 def main():
     import argparse
 
-    from settings import Settings
+    from app.agent_design_pattern.settings import Settings
 
     settings = Settings()
 

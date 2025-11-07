@@ -2,18 +2,25 @@ import operator
 from datetime import datetime
 from typing import Annotated, Any
 
-from common.reflection_manager import Reflection, ReflectionManager, TaskReflector
-from langchain_community.tools.tavily_search import TavilySearchResults
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import ChatPromptTemplate
+from langchain.agents import create_agent
+from langchain_core.messages import HumanMessage
 from langchain_openai import ChatOpenAI
+from langchain_tavily import TavilySearch
 from langgraph.graph import END, StateGraph
 from langgraph.graph.state import CompiledStateGraph
-from langgraph.prebuilt import create_react_agent
-from passive_goal_creator.main import Goal, PassiveGoalCreator
-from prompt_optimizer.main import OptimizedGoal, PromptOptimizer
 from pydantic import BaseModel, Field
-from response_optimizer.main import ResponseOptimizer
+
+from app.agent_design_pattern.common.reflection_manager import (
+    Reflection,
+    ReflectionManager,
+    TaskReflector,
+)
+from app.agent_design_pattern.passive_goal_creator.main import Goal, PassiveGoalCreator
+from app.agent_design_pattern.prompt_optimizer.main import (
+    OptimizedGoal,
+    PromptOptimizer,
+)
+from app.agent_design_pattern.response_optimizer.main import ResponseOptimizer
 
 
 def format_reflections(reflections: list[Reflection]) -> str:
@@ -84,31 +91,59 @@ class ReflectiveResponseOptimizer:
         return optimized_response
 
 
+_query_decomposer_prompt_template = """
+CURRENT_DATE: {current_date}
+-----
+タスク: 与えられた目標を具体的で実行可能なタスクに分解してください。
+要件:
+1. 以下の行動だけで目標を達成すること。決して指定された以外の行動をとらないこと。
+   - インターネットを利用して、目標を達成するための調査を行う。
+2. 各タスクは具体的かつ詳細に記載されており、単独で実行ならびに検証可能な情報を含めること。一切抽象的な表現を含まないこと。
+3. タスクは実行可能な順序でリスト化すること。
+4. タスクは日本語で出力すること。
+5. タスクを作成する際に以下の過去のふりかえりを考慮すること:
+{reflections}
+
+目標: {query}
+""".strip()
+
+
 class QueryDecomposer:
     def __init__(self, llm: ChatOpenAI, reflection_manager: ReflectionManager):
-        self.llm = llm.with_structured_output(DecomposedTasks)
+        self.llm = llm
         self.current_date = datetime.now().strftime("%Y-%m-%d")
         self.reflection_manager = reflection_manager
 
     def run(self, query: str) -> DecomposedTasks:
         relevant_reflections = self.reflection_manager.get_relevant_reflections(query)
         reflection_text = format_reflections(relevant_reflections)
-        prompt = ChatPromptTemplate.from_template(
-            f"CURRENT_DATE: {self.current_date}\n"
-            "-----\n"
-            "タスク: 与えられた目標を具体的で実行可能なタスクに分解してください。\n"
-            "要件:\n"
-            "1. 以下の行動だけで目標を達成すること。決して指定された以外の行動をとらないこと。\n"
-            "   - インターネットを利用して、目標を達成するための調査を行う。\n"
-            "2. 各タスクは具体的かつ詳細に記載されており、単独で実行ならびに検証可能な情報を含めること。一切抽象的な表現を含まないこと。\n"
-            "3. タスクは実行可能な順序でリスト化すること。\n"
-            "4. タスクは日本語で出力すること。\n"
-            "5. タスクを作成する際に以下の過去のふりかえりを考慮すること:\n{reflections}\n\n"
-            "目標: {query}"
+        prompt = _query_decomposer_prompt_template.format(
+            current_date=self.current_date,
+            reflections=reflection_text,
+            query=query,
         )
-        chain = prompt | self.llm
-        tasks = chain.invoke({"query": query, "reflections": reflection_text})
-        return tasks
+        llm_with_structure = self.llm.with_structured_output(DecomposedTasks)
+        return llm_with_structure.invoke(prompt)  # type: ignore[return-value]
+
+
+_task_executor_prompt_template = """
+CURRENT_DATE: {current_date}
+-----
+次のタスクを実行し、詳細な回答を提供してください。
+
+タスク: {task}
+
+要件:
+1. 必要に応じて提供されたツールを使用すること。
+2. 実行において徹底的かつ包括的であること。
+3. 可能な限り具体的な事実やデータを提供すること。
+4. 発見事項を明確に要約すること。
+5. 以下の過去のふりかえりを考慮すること:
+{reflection_text}
+
+ここまでのタスクの実行結果:
+{results_str}
+"""
 
 
 class TaskExecutor:
@@ -116,35 +151,38 @@ class TaskExecutor:
         self.llm = llm
         self.reflection_manager = reflection_manager
         self.current_date = datetime.now().strftime("%Y-%m-%d")
-        self.tools = [TavilySearchResults(max_results=3)]
+        self.tools = [TavilySearch(max_results=3)]
 
     def run(self, task: str, results: list[str]) -> str:
         relevant_reflections = self.reflection_manager.get_relevant_reflections(task)
         reflection_text = format_reflections(relevant_reflections)
-        agent = create_react_agent(self.llm, self.tools)
+        agent: CompiledStateGraph = create_agent(model=self.llm, tools=self.tools)
         results_str = "\n\n".join(
             f"Info {i + 1}:\n{result}" for i, result in enumerate(results)
         )
-        result = agent.invoke(
-            {
-                "messages": [
-                    (
-                        "human",
-                        f"CURRENT_DATE: {self.current_date}\n"
-                        "-----\n"
-                        f"次のタスクを実行し、詳細な回答を提供してください。\n\nタスク: {task}\n\n"
-                        "要件:\n"
-                        "1. 必要に応じて提供されたツールを使用すること。\n"
-                        "2. 実行において徹底的かつ包括的であること。\n"
-                        "3. 可能な限り具体的な事実やデータを提供すること。\n"
-                        "4. 発見事項を明確に要約すること。\n"
-                        f"5. 以下の過去のふりかえりを考慮すること:\n{reflection_text}\n\n"
-                        f"ここまでのタスクの実行結果:\n{results_str}",
-                    )
-                ]
-            }
+        prompt = _task_executor_prompt_template.format(
+            current_date=self.current_date,
+            task=task,
+            reflection_text=reflection_text,
+            results_str=results_str,
         )
+        result = agent.invoke({"messages": [HumanMessage(content=prompt)]})
         return result["messages"][-1].content
+
+
+_result_aggregator_prompt_template = """
+与えられた目標:
+{query}
+
+調査結果:
+{results}
+
+与えられた目標に対し、調査結果を用いて、以下の指示に基づいてレスポンスを生成してください。
+{response_definition}
+
+過去のふりかえりを考慮すること:
+{reflection_text}
+"""
 
 
 class ResultAggregator:
@@ -163,24 +201,18 @@ class ResultAggregator:
         relevant_reflections = [
             self.reflection_manager.get_reflection(rid) for rid in reflection_ids
         ]
-        prompt = ChatPromptTemplate.from_template(
-            "与えられた目標:\n{query}\n\n"
-            "調査結果:\n{results}\n\n"
-            "与えられた目標に対し、調査結果を用いて、以下の指示に基づいてレスポンスを生成してください。\n"
-            "{response_definition}\n\n"
-            "過去のふりかえりを考慮すること:\n{reflection_text}\n"
+        results_str = "\n\n".join(
+            f"Info {i + 1}:\n{result}" for i, result in enumerate(results)
         )
-        chain = prompt | self.llm | StrOutputParser()
-        return chain.invoke(
-            {
-                "query": query,
-                "results": "\n\n".join(
-                    f"Info {i + 1}:\n{result}" for i, result in enumerate(results)
-                ),
-                "response_definition": response_definition,
-                "reflection_text": format_reflections(relevant_reflections),
-            }
+        prompt = _result_aggregator_prompt_template.format(
+            current_date=self.current_date,
+            query=query,
+            results=results_str,
+            response_definition=response_definition,
+            reflection_text=format_reflections(relevant_reflections),
         )
+        ai_message = self.llm.invoke(prompt)
+        return ai_message.content  # type: ignore[return-value]
 
 
 class ReflectiveAgent:
@@ -301,7 +333,7 @@ class ReflectiveAgent:
 def main():
     import argparse
 
-    from settings import Settings
+    from app.agent_design_pattern.settings import Settings
 
     settings = Settings()
 
