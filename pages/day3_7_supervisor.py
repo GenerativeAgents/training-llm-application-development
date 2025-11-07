@@ -6,6 +6,7 @@ from langchain.tools import BaseTool
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
 from langchain_core.tools import tool
 from langchain_tavily import TavilySearch
+from langgraph.config import get_stream_writer
 from langgraph.graph.state import CompiledStateGraph
 
 
@@ -24,35 +25,25 @@ def create_research_agent_tool(model_name: str, reasoning_effort: str) -> BaseTo
     @tool
     def research_agent_tool(query: str) -> str:
         """リサーチエージェントを使用して情報を検索します"""
-        final_state = research_agent.invoke(
-            {"messages": [{"role": "user", "content": query}]}
-        )
-        return final_state["messages"][-1].content
+        stream_writer = get_stream_writer()
+
+        stream_writer("サブエージェントの処理を開始します...")
+
+        for chunk in research_agent.stream(
+            {"messages": [{"role": "user", "content": query}]},
+            stream_mode="updates",
+        ):
+            for _, data in chunk.items():
+                msgs = data["messages"]
+                for msg in msgs:
+                    stream_writer(msg)
+                    filan_message = msg
+
+        stream_writer("サブエージェントの処理を終了します")
+
+        return filan_message.content
 
     return research_agent_tool
-
-
-def create_report_agent_tool(model_name: str, reasoning_effort: str) -> BaseTool:
-    model = init_chat_model(
-        model=model_name,
-        model_provider="openai",
-        reasoning_effort=reasoning_effort,
-    )
-    report_agent: CompiledStateGraph = create_agent(
-        model=model,
-        tools=[TavilySearch()],
-        system_prompt="あなたは優秀なレポートエージェントです。",
-    )
-
-    @tool
-    def report_agent_tool(query: str) -> str:
-        """レポートエージェントを使用してレポートを作成します"""
-        final_state = report_agent.invoke(
-            {"messages": [{"role": "user", "content": query}]}
-        )
-        return final_state["messages"][-1].content
-
-    return report_agent_tool
 
 
 supervisor_system_prompt = """
@@ -60,7 +51,6 @@ supervisor_system_prompt = """
 
 以下のエージェントを使用して、ユーザーの質問に回答してください。
 - リサーチエージェント
-- レポートエージェント
 """
 
 
@@ -75,7 +65,7 @@ def create_supervisor_agent(
 
     tools = [
         create_research_agent_tool(model_name, reasoning_effort),
-        create_report_agent_tool(model_name, reasoning_effort),
+        # create_report_agent_tool(model_name, reasoning_effort),
     ]
 
     return create_agent(
@@ -85,20 +75,27 @@ def create_supervisor_agent(
     )
 
 
-def show_message(message: BaseMessage) -> None:
+def show_message(message: BaseMessage, ai_massage_type: str | None = None) -> None:
     if isinstance(message, HumanMessage):
         # ユーザーの入力の場合、そのまま表示する
         with st.chat_message(message.type):
             st.write(message.content)
     elif isinstance(message, AIMessage):
+        # マルチエージェントでAIのアイコンを変更するため、
+        # ai_massage_typeが指定されている場合、それを使用する
+        if ai_massage_type is not None:
+            message_type = ai_massage_type
+        else:
+            message_type = message.type
+
         if len(message.tool_calls) == 0:
             # Function callingが選択されなかった場合、メッセージを表示する
-            with st.chat_message(message.type):
+            with st.chat_message(message_type):
                 st.write(message.content)
         else:
             # Function callingが選択された場合、ツール名と引数を表示する
             for tool_call in message.tool_calls:
-                with st.chat_message(message.type):
+                with st.chat_message(message_type):
                     st.write(
                         f"'{tool_call['name']}' を {tool_call['args']} で実行します",
                     )
@@ -155,19 +152,23 @@ def app() -> None:
     )
 
     # 新しいメッセージのみを追跡
-    new_messages = []
-    for s in agent.stream({"messages": messages}, stream_mode="values"):  # type: ignore[assignment]
-        # ストリームから全メッセージを取得
-        all_messages = s["messages"]
+    for stream_mode, chunk in agent.stream(
+        {"messages": messages},
+        stream_mode=["updates", "custom"],
+    ):  # type: ignore[assignment]
+        if stream_mode == "updates":
+            assert isinstance(chunk, dict)
+            for _, data in chunk.items():
+                msgs = data["messages"]
+                for msg in msgs:
+                    messages.append(msg)
+                    show_message(msg)
 
-        # 既存のメッセージ数以降の新しいメッセージのみを処理
-        for msg in all_messages[len(messages) :]:
-            if msg not in new_messages:
-                new_messages.append(msg)
-                show_message(msg)
-
-    # 新しいメッセージのみを履歴に追加
-    messages.extend(new_messages)
+        elif stream_mode == "custom":
+            if isinstance(chunk, BaseMessage):
+                show_message(chunk, ai_massage_type="S")
+            else:
+                st.write(chunk)
 
 
 app()
