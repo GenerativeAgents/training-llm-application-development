@@ -65,7 +65,6 @@ def create_supervisor_agent(
 
     tools = [
         create_research_agent_tool(model_name, reasoning_effort),
-        # create_report_agent_tool(model_name, reasoning_effort),
     ]
 
     return create_agent(
