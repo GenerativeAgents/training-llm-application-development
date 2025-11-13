@@ -74,15 +74,19 @@ class Agent:
         elif isinstance(human_review, HumanReviewFeedback):
             # ツールの呼び出しが失敗したことをStateに追加
             last_message = state["messages"][-1]
-            tool_reject_message = ToolMessage(
-                content="Tool call rejected",
-                status="error",
-                name=last_message.tool_calls[0]["name"],
-                tool_call_id=last_message.tool_calls[0]["id"],
-            )
+            # すべてのツール呼び出しに対してToolMessageを作成
+            tool_reject_messages = [
+                ToolMessage(
+                    content="Tool call rejected",
+                    status="error",
+                    name=tool_call["name"],
+                    tool_call_id=tool_call["id"],
+                )
+                for tool_call in last_message.tool_calls
+            ]
             return Command(
                 goto="llm_node",
-                update={"messages": [tool_reject_message, human_review.feedback]},
+                update={"messages": [*tool_reject_messages, human_review.feedback]},
             )
         else:
             raise ValueError(f"Unknown human review: {human_review}")

@@ -361,10 +361,6 @@ class DocumentationAgent:
         return final_state["requirements_doc"]
 
 
-# 実行方法:
-# poetry run python -m documentation_agent.main --task "ユーザーリクエストをここに入力してください"
-# 実行例）
-# poetry run python -m documentation_agent.main --task "スマートフォン向けの健康管理アプリを開発したい"
 def main():
     import argparse
 
