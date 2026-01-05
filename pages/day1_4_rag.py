@@ -1,13 +1,13 @@
 from typing import Iterator
 
 import streamlit as st
+import weave
 from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
 from langchain.embeddings import init_embeddings
 from langchain_chroma import Chroma
 from langchain_core.messages import BaseMessageChunk
 from langchain_core.prompts import ChatPromptTemplate
-from langsmith import traceable
 
 _prompt_template = '''
 以下の文脈だけを踏まえて質問に回答してください。
@@ -20,12 +20,7 @@ _prompt_template = '''
 '''
 
 
-def reduce_fn(outputs):
-    """ストリーミング出力をLangSmithのトレースエントリで1つにまとめる"""
-    return "".join(str(chunk.content) for chunk in outputs)
-
-
-@traceable(reduce_fn=reduce_fn)
+@weave.op(name="rag")
 def stream_rag(query: str, reasoning_effort: str) -> Iterator[BaseMessageChunk]:
     embeddings = init_embeddings(model="text-embedding-3-small", provider="openai")
     vector_store = Chroma(
@@ -51,6 +46,7 @@ def stream_rag(query: str, reasoning_effort: str) -> Iterator[BaseMessageChunk]:
 
 def app() -> None:
     load_dotenv(override=True)
+    weave.init("training-llm-app")
 
     with st.sidebar:
         reasoning_effort = st.selectbox(

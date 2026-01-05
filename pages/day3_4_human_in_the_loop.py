@@ -2,6 +2,7 @@ from typing import Annotated, Any, Literal
 from uuid import uuid4
 
 import streamlit as st
+import weave
 from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
 from langchain_community.tools import ShellTool
@@ -170,6 +171,7 @@ class UIState:
 
 def app(thread_id: str | None = None) -> None:
     load_dotenv(override=True)
+    weave.init("training-llm-app")
 
     # st.session_stateにagentを保存
     if "human_in_the_loop_ui_state" not in st.session_state:

@@ -1,11 +1,13 @@
 import pandas as pd
 import streamlit as st
+import weave
 from dotenv import load_dotenv
-from langsmith import Client
+from weave import Dataset
 
 
 def app() -> None:
     load_dotenv(override=True)
+    weave.init("training-llm-app")
 
     st.title("Create Dataset")
 
@@ -17,39 +19,10 @@ def app() -> None:
     if not clicked:
         return
 
-    # LangSmithのDatasetの作成
-    dataset_name = "training-llm-app"
-
-    client = Client()
-
-    if client.has_dataset(dataset_name=dataset_name):
-        client.delete_dataset(dataset_name=dataset_name)
-
-    dataset = client.create_dataset(dataset_name=dataset_name)
-
-    # アップロードする形式に変換
-    inputs = []
-    outputs = []
-
-    for _, example in examples_df.iterrows():
-        inputs.append(
-            {
-                "question": example["question"],
-            }
-        )
-        outputs.append(
-            {
-                "context": example["context"],
-                "answer": example["answer"],
-            }
-        )
-
     # アップロード
-    client.create_examples(
-        inputs=inputs,
-        outputs=outputs,
-        dataset_id=dataset.id,
-    )
+    dataset = Dataset.from_pandas(examples_df)
+    dataset.name = "dataset-example"
+    weave.publish(dataset)
     st.success("Dataset upload completed.")
 
 

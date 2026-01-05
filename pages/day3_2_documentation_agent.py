@@ -1,4 +1,5 @@
 import streamlit as st
+import weave
 from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
 
@@ -7,6 +8,7 @@ from app.documentation_agent.agent import DocumentationAgent, InterviewState
 
 def app() -> None:
     load_dotenv(override=True)
+    weave.init("training-llm-app")
 
     with st.sidebar:
         model_name = st.selectbox(

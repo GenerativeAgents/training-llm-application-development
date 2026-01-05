@@ -1,6 +1,8 @@
 import sqlite3
 
 import streamlit as st
+import weave
+from dotenv import load_dotenv
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.types import Command, Interrupt, RunnableConfig
 from pydantic import BaseModel
@@ -60,6 +62,9 @@ def get_interrupt_threads(checkpointer: SqliteSaver) -> list[InterruptThread]:
 
 
 def app() -> None:
+    load_dotenv(override=True)
+    weave.init("training-llm-app")
+
     st.title("Inbox")
 
     conn = sqlite3.connect("tmp/checkpoints.sqlite", check_same_thread=False)
