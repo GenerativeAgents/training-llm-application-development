@@ -133,7 +133,7 @@
 
 次の URL にアクセスし、「サイトに正常に接続できました」と表示されれば正常です。
 
-https://academy.generative-agents.co.jp/
+[https://academy.generative-agents.co.jp/](https://academy.generative-agents.co.jp/)
 
 ### ⑥ ハンズオン環境
 
