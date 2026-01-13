@@ -14,9 +14,16 @@ class AnswerToken:
         self.token = token
 
 
+class WeaveCallId:
+    def __init__(self, weave_call_id: str | None):
+        self.weave_call_id = weave_call_id
+
+
 class BaseRAGChain(ABC):
     @abstractmethod
-    def stream(self, question: str) -> Generator[Context | AnswerToken, None, None]:
+    def stream(
+        self, question: str
+    ) -> Generator[Context | AnswerToken | WeaveCallId, None, None]:
         pass
 
 

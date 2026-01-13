@@ -30,6 +30,8 @@ dependencies = [
     "streamlit==1.50.0",
     "tavily-python==0.7.12",
     "langchain-mcp-adapters>=0.1.11",
+    "wandb>=0.23.1",
+    "weave>=0.52.22",
 ]
 
 [tool.uv]

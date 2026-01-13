@@ -1,14 +1,14 @@
 from enum import Enum
 from typing import Generator
 
+import weave
 from langchain.embeddings import init_embeddings
 from langchain_chroma import Chroma
 from langchain_community.retrievers import TavilySearchAPIRetriever
 from langchain_core.language_models import BaseChatModel
-from langsmith import traceable
 from pydantic import BaseModel
 
-from app.advanced_rag.chains.base import AnswerToken, BaseRAGChain, Context, reduce_fn
+from app.advanced_rag.chains.base import AnswerToken, BaseRAGChain, Context, WeaveCallId
 
 
 class Route(str, Enum):
@@ -58,8 +58,13 @@ class RouteRAGChain(BaseRAGChain):
             {"run_name": "web_retriever"}
         )
 
-    @traceable(name="route", reduce_fn=reduce_fn)
-    def stream(self, question: str) -> Generator[Context | AnswerToken, None, None]:
+    @weave.op(name="route")
+    def stream(
+        self, question: str
+    ) -> Generator[Context | AnswerToken | WeaveCallId, None, None]:
+        current_call = weave.require_current_call()
+        yield WeaveCallId(weave_call_id=current_call.id)
+
         # ルーティング
         route_prompt = _route_prompt_template.format(question=question)
         model_with_structure = self.model.with_structured_output(RouteOutput)
