@@ -11,16 +11,7 @@ from langchain_core.runnables import RunnableParallel
 from langsmith import traceable
 
 from app.advanced_rag.chains.base import AnswerToken, BaseRAGChain, Context, reduce_fn
-
-_generate_answer_prompt_template = '''
-以下の文脈だけを踏まえて質問に回答してください。
-
-文脈: """
-{context}
-"""
-
-質問: {question}
-'''
+from app.prompts import generate_answer_prompt
 
 
 @traceable
@@ -96,11 +87,11 @@ class HybridRAGChain(BaseRAGChain):
         yield Context(documents=documents)
 
         # 回答を生成して徐々に応答を返す
-        generate_answer_prompt = _generate_answer_prompt_template.format(
+        generate_answer_prompt_text = generate_answer_prompt.format(
             context=documents,
             question=question,
         )
-        for chunk in self.model.stream(generate_answer_prompt):
+        for chunk in self.model.stream(generate_answer_prompt_text):
             yield AnswerToken(token=chunk.content)
 
 

@@ -32,6 +32,7 @@ dependencies = [
     "langchain-mcp-adapters>=0.1.11",
     "wandb>=0.23.1",
     "weave>=0.52.22",
+    "litellm>=1.80.0",
 ]
 
 [tool.uv]

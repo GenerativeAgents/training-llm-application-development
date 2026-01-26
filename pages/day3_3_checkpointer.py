@@ -1,3 +1,4 @@
+import os
 from typing import Annotated, Any
 from uuid import uuid4
 
@@ -104,7 +105,7 @@ def show_messages(messages: list[BaseMessage]) -> None:
 
 def app() -> None:
     load_dotenv(override=True)
-    weave.init("training-llm-app")
+    weave.init(os.getenv("WEAVE_PROJECT_NAME"))
 
     st.title("Agent")
 

@@ -1,3 +1,5 @@
+import os
+
 import streamlit as st
 import weave
 from dotenv import load_dotenv
@@ -9,7 +11,7 @@ from langchain_text_splitters import CharacterTextSplitter
 
 def app() -> None:
     load_dotenv(override=True)
-    weave.init("training-llm-app")
+    weave.init(os.getenv("WEAVE_PROJECT_NAME"))
 
     st.title("Indexing")
 

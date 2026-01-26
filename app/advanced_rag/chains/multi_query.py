@@ -7,31 +7,11 @@ from langchain_core.language_models import BaseChatModel
 from pydantic import BaseModel, Field
 
 from app.advanced_rag.chains.base import AnswerToken, BaseRAGChain, Context, WeaveCallId
+from app.prompts import generate_answer_prompt, query_generation_prompt
 
 
 class QueryGenerationOutput(BaseModel):
     queries: list[str] = Field(..., description="検索クエリのリスト")
-
-
-_query_generation_prompt_template = """\
-質問に対してベクターデータベースから関連文書を検索するために、
-3つの異なる検索クエリを生成してください。
-距離ベースの類似性検索の限界を克服するために、
-ユーザーの質問に対して複数の視点を提供することが目標です。
-
-質問: {question}
-"""
-
-
-_generate_answer_prompt_template = '''
-以下の文脈だけを踏まえて質問に回答してください。
-
-文脈: """
-{context}
-"""
-
-質問: {question}
-'''
 
 
 class MultiQueryRAGChain(BaseRAGChain):
@@ -54,12 +34,12 @@ class MultiQueryRAGChain(BaseRAGChain):
         yield WeaveCallId(weave_call_id=current_call.id)
 
         # 検索クエリを生成する
-        query_generation_prompt = _query_generation_prompt_template.format(
+        query_generation_prompt_text = query_generation_prompt.format(
             question=question
         )
         model_with_structure = self.model.with_structured_output(QueryGenerationOutput)
         query_generation_output: QueryGenerationOutput = model_with_structure.invoke(
-            query_generation_prompt
+            query_generation_prompt_text
         )  # type: ignore[assignment]
 
         # 検索して検索結果を返す
@@ -68,11 +48,11 @@ class MultiQueryRAGChain(BaseRAGChain):
         yield Context(documents=documents)
 
         # 回答を生成して徐々に応答を返す
-        generate_answer_prompt = _generate_answer_prompt_template.format(
+        generate_answer_prompt_text = generate_answer_prompt.format(
             context=documents,
             question=question,
         )
-        for chunk in self.model.stream(generate_answer_prompt):
+        for chunk in self.model.stream(generate_answer_prompt_text):
             yield AnswerToken(token=chunk.content)
 
 

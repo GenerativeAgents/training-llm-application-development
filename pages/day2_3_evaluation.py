@@ -1,4 +1,5 @@
 import asyncio
+import os
 import time
 from typing import Any
 
@@ -13,6 +14,7 @@ from weave import Evaluation, Model
 
 from app.advanced_rag.chains.base import AnswerToken, BaseRAGChain, Context
 from app.advanced_rag.factory import chain_constructor_by_name, create_rag_chain
+from app.prompts import answer_hallucination_prompt, publish_evaluation_prompts
 
 # RAGの処理を呼び出す関数 (クラス)
 
@@ -70,54 +72,10 @@ class AnswerHallucinationOutput(BaseModel):
     )
 
 
-# 以下のプロンプトは、LangSmithが提供するOnline Evaluatorのプロンプトを日本語訳したものです
-_answer_hallucination_prompt = """
-あなたは、モデル出力の幻覚（ハルシネーション）を評価する専門的なデータラベラーです。以下のルーブリックに基づいてスコアを割り当てることがあなたのタスクです：
-
-<Rubric>
-  幻覚のない回答とは：
-  - 入力コンテキストによって直接裏付けられる検証可能な事実のみを含む
-  - 裏付けのない主張や仮定を行わない
-  - 推測的または想像上の詳細を追加しない
-  - 日付、数字、および具体的な詳細において完全な正確性を保つ
-  - 情報が不完全な場合は適切に不確実性を示す
-</Rubric>
-
-<Instructions>
-  - 入力コンテキストを徹底的に読む
-  - 出力で行われているすべての主張を特定する
-  - 各主張を入力コンテキストと相互参照する
-  - 裏付けのない情報や矛盾する情報を記録する
-  - 幻覚の重大性と数量を考慮する
-</Instructions>
-
-<Reminder>
-  事実の正確性と入力コンテキストからの裏付けのみに焦点を当ててください。採点においてスタイル、文法、またはプレゼンテーションは考慮しないでください。短くても事実に基づく回答は、裏付けのない主張を含む長い回答よりも高いスコアを付けるべきです。
-</Reminder>
-
-出力の幻覚を評価するために、以下のコンテキストを使用してください：
-<context>
-{context}
-</context>
-
-<input>
-{input}
-</input>
-
-<output>
-{output}
-</output>
-
-利用可能な場合は、以下の参照出力も回答の幻覚を特定するのに役立てることができます：
-<reference_outputs>
-{reference_outputs}
-</reference_outputs>
-""".strip()
-
-
 @weave.op
 def answer_hallucination(output: dict[str, Any], question: str, answer: str) -> int:
-    prompt = ChatPromptTemplate.from_template(_answer_hallucination_prompt)
+    # weave.StringPromptの内容を直接取得してChatPromptTemplateに渡す
+    prompt = ChatPromptTemplate.from_template(answer_hallucination_prompt.content)
     model = init_chat_model(
         model="gpt-5-nano",
         model_provider="openai",
@@ -148,7 +106,10 @@ def answer_hallucination(output: dict[str, Any], question: str, answer: str) -> 
 
 def app() -> None:
     load_dotenv(override=True)
-    weave.init("training-llm-app")
+    weave.init(os.getenv("WEAVE_PROJECT_NAME"))
+
+    # プロンプトをWeaveに公開
+    publish_evaluation_prompts()
 
     with st.sidebar:
         reasoning_effort = st.selectbox(

@@ -1,3 +1,4 @@
+import os
 from typing import Iterator
 
 import streamlit as st
@@ -46,7 +47,7 @@ def stream_rag(query: str, reasoning_effort: str) -> Iterator[BaseMessageChunk]:
 
 def app() -> None:
     load_dotenv(override=True)
-    weave.init("training-llm-app")
+    weave.init(os.getenv("WEAVE_PROJECT_NAME"))
 
     with st.sidebar:
         reasoning_effort = st.selectbox(

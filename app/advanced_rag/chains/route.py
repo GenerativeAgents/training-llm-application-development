@@ -9,6 +9,7 @@ from langchain_core.language_models import BaseChatModel
 from pydantic import BaseModel
 
 from app.advanced_rag.chains.base import AnswerToken, BaseRAGChain, Context, WeaveCallId
+from app.prompts import generate_answer_prompt, route_prompt
 
 
 class Route(str, Enum):
@@ -18,26 +19,6 @@ class Route(str, Enum):
 
 class RouteOutput(BaseModel):
     route: Route
-
-
-_route_prompt_template = """\
-質問に回答するために適切なRetrieverを選択してください。
-用意しているのは、LangSmithに関する情報を検索する「langsmith_document」と、
-それ以外の質問をWebサイトで検索するための「web」です。
-
-質問: {question}
-"""
-
-
-_generate_answer_prompt_template = '''
-以下の文脈だけを踏まえて質問に回答してください。
-
-文脈: """
-{context}
-"""
-
-質問: {question}
-'''
 
 
 class RouteRAGChain(BaseRAGChain):
@@ -66,9 +47,9 @@ class RouteRAGChain(BaseRAGChain):
         yield WeaveCallId(weave_call_id=current_call.id)
 
         # ルーティング
-        route_prompt = _route_prompt_template.format(question=question)
+        route_prompt_text = route_prompt.format(question=question)
         model_with_structure = self.model.with_structured_output(RouteOutput)
-        route_output: RouteOutput = model_with_structure.invoke(route_prompt)  # type: ignore[assignment]
+        route_output: RouteOutput = model_with_structure.invoke(route_prompt_text)  # type: ignore[assignment]
         route = route_output.route
 
         # ルーティングに応じて検索
@@ -81,11 +62,11 @@ class RouteRAGChain(BaseRAGChain):
         yield Context(documents=documents)
 
         # 回答を生成して徐々に応答を返す
-        generate_answer_prompt = _generate_answer_prompt_template.format(
+        generate_answer_prompt_text = generate_answer_prompt.format(
             context=documents,
             question=question,
         )
-        for chunk in self.model.stream(generate_answer_prompt):
+        for chunk in self.model.stream(generate_answer_prompt_text):
             yield AnswerToken(token=chunk.content)
 
 

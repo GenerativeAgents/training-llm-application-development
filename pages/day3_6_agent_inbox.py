@@ -1,3 +1,4 @@
+import os
 import sqlite3
 
 import streamlit as st
@@ -63,7 +64,7 @@ def get_interrupt_threads(checkpointer: SqliteSaver) -> list[InterruptThread]:
 
 def app() -> None:
     load_dotenv(override=True)
-    weave.init("training-llm-app")
+    weave.init(os.getenv("WEAVE_PROJECT_NAME"))
 
     st.title("Inbox")
 

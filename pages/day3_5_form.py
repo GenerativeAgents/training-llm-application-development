@@ -1,3 +1,4 @@
+import os
 import sqlite3
 from uuid import uuid4
 
@@ -74,7 +75,7 @@ def create_graph() -> CompiledStateGraph:
 
 def app() -> None:
     load_dotenv(override=True)
-    weave.init("training-llm-app")
+    weave.init(os.getenv("WEAVE_PROJECT_NAME"))
 
     st.title("お問い合わせフォーム")
 

@@ -9,16 +9,7 @@ from langchain_core.documents import Document
 from langchain_core.language_models import BaseChatModel
 
 from app.advanced_rag.chains.base import AnswerToken, BaseRAGChain, Context, WeaveCallId
-
-_generate_answer_prompt_template = '''
-以下の文脈だけを踏まえて質問に回答してください。
-
-文脈: """
-{context}
-"""
-
-質問: {question}
-'''
+from app.prompts import generate_answer_prompt
 
 
 @weave.op
@@ -72,7 +63,7 @@ class RerankRAGChain(BaseRAGChain):
         yield Context(documents=documents)
 
         # 回答を生成して徐々に応答を返す
-        prompt = _generate_answer_prompt_template.format(
+        prompt = generate_answer_prompt.format(
             context=documents,
             question=question,
         )
