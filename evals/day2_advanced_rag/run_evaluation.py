@@ -73,6 +73,7 @@ class ContextRecallScorer(weave.Scorer):
 
     @weave.op
     async def score(self, output: dict[str, Any], answer: str) -> dict:
+        # https://docs.wandb.ai/weave/guides/evaluation/builtin_scorers#ragas-contextentityrecallscorer
         scorer = ContextEntityRecallScorer(model_id=self.model_id)
         result = await scorer.score(
             output=answer,  # 期待する回答
@@ -98,6 +99,7 @@ class HallucinationScorer(weave.Scorer):
 
     @weave.op
     async def score(self, output: dict[str, Any]) -> dict:
+        # https://docs.wandb.ai/weave/guides/evaluation/builtin_scorers#hallucinationfreescorer
         scorer = HallucinationFreeScorer(model_id=self.model_id)
         result = await scorer.score(
             output=output["answer"],  # 生成された回答
