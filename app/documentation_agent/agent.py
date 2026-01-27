@@ -9,6 +9,7 @@ uv run python -m app.documentation_agent.agent --task "スマートフォン向�
 import operator
 from typing import Annotated, Any
 
+import weave
 from dotenv import load_dotenv
 from langchain.chat_models.base import BaseChatModel
 from langchain_core.prompts import ChatPromptTemplate
@@ -78,6 +79,7 @@ class PersonaGenerator:
         self.llm = llm
         self.k = k
 
+    @weave.op(name="persona_generator")
     def run(self, user_request: str) -> Personas:
         # プロンプトの作成
         prompt = ChatPromptTemplate.from_messages(
@@ -106,6 +108,7 @@ class InterviewConductor:
     def __init__(self, llm: BaseChatModel):
         self.llm = llm
 
+    @weave.op(name="interview_conductor")
     def run(self, user_request: str, personas: list[Persona]) -> InterviewResult:
         # 質問を生成
         questions = self._generate_questions(
@@ -200,6 +203,7 @@ class InformationEvaluator:
         self.llm = llm
 
     # ユーザーリクエストとインタビュー結果を基に情報の十分性を評価
+    @weave.op(name="information_evaluator")
     def run(self, user_request: str, interviews: list[Interview]) -> EvaluationResult:
         # プロンプトを定義
         prompt = ChatPromptTemplate.from_messages(
@@ -238,6 +242,7 @@ class RequirementsDocumentGenerator:
     def __init__(self, llm: BaseChatModel):
         self.llm = llm
 
+    @weave.op(name="requirements_generator")
     def run(self, user_request: str, interviews: list[Interview]) -> str:
         # プロンプトを定義
         prompt = ChatPromptTemplate.from_messages(
@@ -352,6 +357,7 @@ class DocumentationAgent:
         )
         return {"requirements_doc": requirements_doc}
 
+    @weave.op(name="documentation_agent")
     def run(self, user_request: str) -> str:
         # 初期状態の設定
         initial_state = InterviewState(user_request=user_request)

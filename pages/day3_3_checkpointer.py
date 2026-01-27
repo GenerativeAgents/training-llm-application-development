@@ -1,7 +1,9 @@
+import os
 from typing import Annotated, Any
 from uuid import uuid4
 
 import streamlit as st
+import weave
 from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
@@ -103,6 +105,7 @@ def show_messages(messages: list[BaseMessage]) -> None:
 
 def app() -> None:
     load_dotenv(override=True)
+    weave.init(os.getenv("WEAVE_PROJECT_NAME"))
 
     st.title("Agent")
 

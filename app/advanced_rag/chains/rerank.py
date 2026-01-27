@@ -2,26 +2,17 @@ from copy import deepcopy
 from typing import Generator, Sequence
 
 import cohere
+import weave
 from langchain.embeddings import init_embeddings
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
 from langchain_core.language_models import BaseChatModel
-from langsmith import traceable
 
-from app.advanced_rag.chains.base import AnswerToken, BaseRAGChain, Context, reduce_fn
-
-_generate_answer_prompt_template = '''
-以下の文脈だけを踏まえて質問に回答してください。
-
-文脈: """
-{context}
-"""
-
-質問: {question}
-'''
+from app.advanced_rag.chains.base import AnswerToken, BaseRAGChain, Context, WeaveCallId
+from app.prompts import generate_answer_prompt
 
 
-@traceable
+@weave.op
 def _rerank(
     question: str, documents: Sequence[Document], top_n: int
 ) -> Sequence[Document]:
@@ -57,8 +48,13 @@ class RerankRAGChain(BaseRAGChain):
         )
         self.retriever = vector_store.as_retriever(search_kwargs={"k": 20})
 
-    @traceable(name="rerank", reduce_fn=reduce_fn)
-    def stream(self, question: str) -> Generator[Context | AnswerToken, None, None]:
+    @weave.op(name="rerank")
+    def stream(
+        self, question: str
+    ) -> Generator[Context | AnswerToken | WeaveCallId, None, None]:
+        current_call = weave.require_current_call()
+        yield WeaveCallId(weave_call_id=current_call.id)
+
         # 検索する
         retrieved_documents = self.retriever.invoke(question)
         # リランクする
@@ -67,7 +63,7 @@ class RerankRAGChain(BaseRAGChain):
         yield Context(documents=documents)
 
         # 回答を生成して徐々に応答を返す
-        prompt = _generate_answer_prompt_template.format(
+        prompt = generate_answer_prompt.format(
             context=documents,
             question=question,
         )

@@ -1,7 +1,9 @@
 import asyncio
+import os
 from pathlib import Path
 
 import streamlit as st
+import weave
 from dotenv import load_dotenv
 from langchain.agents import create_agent
 from langchain.chat_models import init_chat_model
@@ -67,6 +69,7 @@ def show_message(message: BaseMessage) -> None:
 
 async def app() -> None:
     load_dotenv(override=True)
+    weave.init(os.getenv("WEAVE_PROJECT_NAME"))
 
     st.title("MCP")
 

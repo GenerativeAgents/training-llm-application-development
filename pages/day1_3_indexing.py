@@ -1,4 +1,7 @@
+import os
+
 import streamlit as st
+import weave
 from dotenv import load_dotenv
 from langchain.embeddings import init_embeddings
 from langchain_chroma import Chroma
@@ -8,6 +11,7 @@ from langchain_text_splitters import CharacterTextSplitter
 
 def app() -> None:
     load_dotenv(override=True)
+    weave.init(os.getenv("WEAVE_PROJECT_NAME"))
 
     st.title("Indexing")
 

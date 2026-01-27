@@ -1,4 +1,7 @@
+import os
+
 import streamlit as st
+import weave
 from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
 
@@ -8,6 +11,7 @@ from app.advanced_rag.factory import chain_constructor_by_name, create_rag_chain
 
 def app() -> None:
     load_dotenv(override=True)
+    weave.init(os.getenv("WEAVE_PROJECT_NAME"))
 
     with st.sidebar:
         reasoning_effort = st.selectbox(

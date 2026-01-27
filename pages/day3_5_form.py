@@ -1,7 +1,9 @@
+import os
 import sqlite3
 from uuid import uuid4
 
 import streamlit as st
+import weave
 from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
 from langchain_core.prompts import ChatPromptTemplate
@@ -73,6 +75,7 @@ def create_graph() -> CompiledStateGraph:
 
 def app() -> None:
     load_dotenv(override=True)
+    weave.init(os.getenv("WEAVE_PROJECT_NAME"))
 
     st.title("お問い合わせフォーム")
 
