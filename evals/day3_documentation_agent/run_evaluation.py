@@ -10,6 +10,8 @@ Documentation Agent 評価スクリプト
     # 複数モデル
     uv run python -m evals.day3_documentation_agent.run_evaluation \
       --models gpt-4.1-nano gpt-4.1-mini gpt-4.1
+
+データセットの登録は pages/day3_x_create_documentation_dataset.py を参照
 """
 
 import argparse

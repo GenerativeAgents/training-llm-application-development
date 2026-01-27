@@ -55,7 +55,6 @@ class SectionCompletenessScorer(weave.Scorer):
             "completeness": completeness,
             "present_sections": present_sections,
             "missing_sections": missing_sections,
-            "score": completeness,
         }
 
 
@@ -89,7 +88,6 @@ class RequirementsCoverageScorer(weave.Scorer):
             "coverage": coverage,
             "covered_keywords": covered,
             "not_covered_keywords": not_covered,
-            "score": coverage,
         }
 
 
@@ -147,25 +145,11 @@ class DocumentQualityScorer(weave.Scorer):
 
         result: QualityEvaluation = llm_with_structure.invoke(prompt_value)
 
-        # 3つのスコアの平均を総合スコアとする
-        average_score = (
-            result.comprehensiveness_score
-            + result.specificity_score
-            + result.consistency_score
-        ) / 3
-
         return {
-            "comprehensiveness": {
-                "score": result.comprehensiveness_score,
-                "reason": result.comprehensiveness_reason,
-            },
-            "specificity": {
-                "score": result.specificity_score,
-                "reason": result.specificity_reason,
-            },
-            "consistency": {
-                "score": result.consistency_score,
-                "reason": result.consistency_reason,
-            },
-            "score": average_score,
+            "comprehensiveness": result.comprehensiveness_score,
+            "comprehensiveness_reason": result.comprehensiveness_reason,
+            "specificity": result.specificity_score,
+            "specificity_reason": result.specificity_reason,
+            "consistency": result.consistency_score,
+            "consistency_reason": result.consistency_reason,
         }

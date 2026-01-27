@@ -32,7 +32,7 @@ class DocumentationAgentPredictor(Model):
         Returns:
             requirements_doc: 生成された要件定義書
         """
-        llm = ChatOpenAI(model=self.model_name, temperature=0.0, reasoning_effort="none")
+        llm = ChatOpenAI(model=self.model_name, temperature=0.0)
         agent = DocumentationAgent(llm=llm, k=self.k)
 
         requirements_doc = agent.run(user_request=user_request)

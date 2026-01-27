@@ -8,6 +8,8 @@ Advanced RAG Chain Type 評価スクリプト
     uv run python -m evals.day2_advanced_rag.run_evaluation
     uv run python -m evals.day2_advanced_rag.run_evaluation --chains naive hyde
     uv run python -m evals.day2_advanced_rag.run_evaluation --model gpt-4.1-nano
+
+データセットの登録は pages/day2_x_create_dataset.py を参照
 """
 
 import argparse
@@ -78,7 +80,6 @@ class ContextRecallScorer(weave.Scorer):
         )
         return {
             "recall": result["recall"],
-            "score": result["recall"],
         }
 
 
