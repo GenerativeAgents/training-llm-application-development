@@ -11,6 +11,10 @@ from langgraph.graph.state import CompiledStateGraph
 
 # from langchain_community.tools import ShellTool
 
+system_prompt = """
+ファイルの作成を依頼された場合、terminalでechoコマンドを使用してください。
+"""
+
 
 def create_agent_with_tools(
     model_name: str, reasoning_effort: str
@@ -41,7 +45,7 @@ def create_agent_with_tools(
         model_provider="openai",
         reasoning_effort=reasoning_effort,
     )
-    return create_agent(model=model, tools=tools)
+    return create_agent(model=model, tools=tools, system_prompt=system_prompt)
 
 
 def show_message(message: BaseMessage) -> None:

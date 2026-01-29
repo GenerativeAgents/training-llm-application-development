@@ -20,6 +20,11 @@ from langgraph.graph.state import CompiledStateGraph
 #         return "電気を消しました"
 
 
+system_prompt = """
+ファイルの作成を依頼された場合、terminalでechoコマンドを使用してください。
+"""
+
+
 def create_agent_with_tools(
     model_name: str, reasoning_effort: str
 ) -> CompiledStateGraph:
@@ -49,7 +54,7 @@ def create_agent_with_tools(
         model_provider="openai",
         reasoning_effort=reasoning_effort,
     )
-    return create_agent(model=model, tools=tools)
+    return create_agent(model=model, tools=tools, system_prompt=system_prompt)
 
 
 def show_message(message: BaseMessage) -> None:
