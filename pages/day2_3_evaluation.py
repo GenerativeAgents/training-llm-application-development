@@ -5,7 +5,7 @@ import streamlit as st
 from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
 from langchain_core.documents import Document
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.messages import HumanMessage
 from langsmith.evaluation import evaluate
 from pydantic import BaseModel, Field
 
@@ -116,7 +116,6 @@ _answer_hallucination_prompt = """
 def answer_hallucination(
     inputs: dict[str, Any], outputs: dict[str, Any], reference_outputs: dict[str, Any]
 ) -> int:
-    prompt = ChatPromptTemplate.from_template(_answer_hallucination_prompt)
     model = init_chat_model(
         model="gpt-5-nano",
         model_provider="openai",
@@ -124,15 +123,13 @@ def answer_hallucination(
     )
     model_with_structure = model.with_structured_output(AnswerHallucinationOutput)
 
-    prompt_value = prompt.invoke(
-        {
-            "input": inputs["question"],
-            "context": outputs["context"],
-            "output": outputs["answer"],
-            "reference_outputs": reference_outputs["answer"],
-        }
+    prompt_text = _answer_hallucination_prompt.format(
+        input=inputs["question"],
+        context=outputs["context"],
+        output=outputs["answer"],
+        reference_outputs=reference_outputs["answer"],
     )
-    output: AnswerHallucinationOutput = model_with_structure.invoke(prompt_value)  # type: ignore[assignment]
+    output: AnswerHallucinationOutput = model_with_structure.invoke([HumanMessage(content=prompt_text)])  # type: ignore[assignment]
 
     # ハルシネーションのある場合は0、ない場合は1を返す
     if output.hallucination:

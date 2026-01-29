@@ -1,24 +1,17 @@
 import streamlit as st
 from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 
 
 def invoke_llm(messages: list[BaseMessage]) -> str:
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            ("system", "You are a helpful assistant."),
-            MessagesPlaceholder("messages", optional=True),
-        ]
-    )
     model = init_chat_model(
         model="gpt-5-nano",
         model_provider="openai",
         reasoning_effort="minimal",
     )
-    prompt_value = prompt.invoke({"messages": messages})
-    ai_message = model.invoke(prompt_value)
+    all_messages = [SystemMessage(content="You are a helpful assistant.")] + messages
+    ai_message = model.invoke(all_messages)
     return ai_message.content
 
 
