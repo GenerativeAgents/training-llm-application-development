@@ -8,25 +8,19 @@ from langchain_core.messages import (
     BaseMessage,
     BaseMessageChunk,
     HumanMessage,
+    SystemMessage,
 )
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
 
 def stream_llm(messages: list[BaseMessage]) -> Iterator[BaseMessageChunk]:
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            ("system", "You are a helpful assistant."),
-            MessagesPlaceholder("messages", optional=True),
-        ]
-    )
     model = init_chat_model(
         model="gpt-5-nano",
         model_provider="openai",
         reasoning_effort="minimal",
     )
 
-    prompt_value = prompt.invoke({"messages": messages})
-    return model.stream(prompt_value)
+    all_messages = [SystemMessage(content="You are a helpful assistant.")] + messages
+    return model.stream(all_messages)
 
 
 def app() -> None:

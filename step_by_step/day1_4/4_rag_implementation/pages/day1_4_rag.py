@@ -5,8 +5,7 @@ from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
 from langchain.embeddings import init_embeddings
 from langchain_chroma import Chroma
-from langchain_core.messages import BaseMessageChunk
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.messages import BaseMessageChunk, HumanMessage
 from langsmith import traceable
 
 _prompt_template = '''
@@ -35,8 +34,6 @@ def stream_rag(query: str) -> Iterator[BaseMessageChunk]:
 
     retriever = vector_store.as_retriever()
 
-    prompt = ChatPromptTemplate.from_template(_prompt_template)
-
     model = init_chat_model(
         model="gpt-5-nano",
         model_provider="openai",
@@ -44,8 +41,8 @@ def stream_rag(query: str) -> Iterator[BaseMessageChunk]:
     )
 
     documents = retriever.invoke(query)
-    prompt_value = prompt.invoke({"question": query, "context": documents})
-    return model.stream(prompt_value)
+    prompt_text = _prompt_template.format(question=query, context=documents)
+    return model.stream([HumanMessage(content=prompt_text)])
 
 
 def app() -> None:

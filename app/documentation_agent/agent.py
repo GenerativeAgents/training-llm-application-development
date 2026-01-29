@@ -11,7 +11,7 @@ from typing import Annotated, Any
 
 from dotenv import load_dotenv
 from langchain.chat_models.base import BaseChatModel
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 from langgraph.graph import END, StateGraph
 from langgraph.graph.state import CompiledStateGraph
@@ -80,25 +80,20 @@ class PersonaGenerator:
 
     def run(self, user_request: str) -> Personas:
         # プロンプトの作成
-        prompt = ChatPromptTemplate.from_messages(
-            [
-                (
-                    "system",
-                    "あなたはユーザーインタビュー用の多様なペルソナを作成する専門家です。",
-                ),
-                (
-                    "human",
-                    "以下のユーザーリクエストに関するインタビュー用に、{k}人の多様なペルソナを生成してください。\n\n"
-                    "ユーザーリクエスト: {user_request}\n\n"
-                    "各ペルソナには名前と簡単な背景を含めてください。年齢、性別、職業、技術的専門知識において多様性を確保してください。",
-                ),
-            ]
-        )
-        prompt_value = prompt.invoke({"k": self.k, "user_request": user_request})
+        messages = [
+            SystemMessage(
+                content="あなたはユーザーインタビュー用の多様なペルソナを作成する専門家です。"
+            ),
+            HumanMessage(
+                content=f"以下のユーザーリクエストに関するインタビュー用に、{self.k}人の多様なペルソナを生成してください。\n\n"
+                f"ユーザーリクエスト: {user_request}\n\n"
+                f"各ペルソナには名前と簡単な背景を含めてください。年齢、性別、職業、技術的専門知識において多様性を確保してください。"
+            ),
+        ]
 
         # ペルソナの生成
         llm_with_structure = self.llm.with_structured_output(Personas)
-        return llm_with_structure.invoke(prompt_value)  # type: ignore[return-value]
+        return llm_with_structure.invoke(messages)  # type: ignore[return-value]
 
 
 # インタビューを実施するクラス
@@ -123,65 +118,42 @@ class InterviewConductor:
     def _generate_questions(
         self, user_request: str, personas: list[Persona]
     ) -> list[str]:
-        # 質問生成のためのプロンプトを定義
-        question_prompt = ChatPromptTemplate.from_messages(
+        # 質問生成のためのプロンプトを作成
+        message_lists = [
             [
-                (
-                    "system",
-                    "あなたはユーザー要件に基づいて適切な質問を生成する専門家です。",
+                SystemMessage(
+                    content="あなたはユーザー要件に基づいて適切な質問を生成する専門家です。"
                 ),
-                (
-                    "human",
-                    "以下のペルソナに関連するユーザーリクエストについて、1つの質問を生成してください。\n\n"
-                    "ユーザーリクエスト: {user_request}\n"
-                    "ペルソナ: {persona_name} - {persona_background}\n\n"
-                    "質問は具体的で、このペルソナの視点から重要な情報を引き出すように設計してください。",
+                HumanMessage(
+                    content=f"以下のペルソナに関連するユーザーリクエストについて、1つの質問を生成してください。\n\n"
+                    f"ユーザーリクエスト: {user_request}\n"
+                    f"ペルソナ: {persona.name} - {persona.background}\n\n"
+                    f"質問は具体的で、このペルソナの視点から重要な情報を引き出すように設計してください。"
                 ),
             ]
-        )
-        # 質問生成のためのプロンプトを作成
-        prompt_values = [
-            question_prompt.invoke(
-                {
-                    "user_request": user_request,
-                    "persona_name": persona.name,
-                    "persona_background": persona.background,
-                }
-            )
             for persona in personas
         ]
 
         # 質問をバッチ処理で生成
-        ai_messages = self.llm.batch(prompt_values)  # type: ignore[arg-type]
+        ai_messages = self.llm.batch(message_lists)  # type: ignore[arg-type]
         return [ai_message.content for ai_message in ai_messages]  # type: ignore[misc]
 
     def _generate_answers(
         self, personas: list[Persona], questions: list[str]
     ) -> list[str]:
-        # 回答生成のためのプロンプトを定義
-        answer_prompt = ChatPromptTemplate.from_messages(
-            [
-                (
-                    "system",
-                    "あなたは以下のペルソナとして回答しています: {persona_name} - {persona_background}",
-                ),
-                ("human", "質問: {question}"),
-            ]
-        )
         # 回答生成のためのプロンプトを作成
-        prompt_values = [
-            answer_prompt.invoke(
-                {
-                    "persona_name": persona.name,
-                    "persona_background": persona.background,
-                    "question": question,
-                }
-            )
+        message_lists = [
+            [
+                SystemMessage(
+                    content=f"あなたは以下のペルソナとして回答しています: {persona.name} - {persona.background}"
+                ),
+                HumanMessage(content=f"質問: {question}"),
+            ]
             for persona, question in zip(personas, questions)
         ]
 
         # 回答生成のためのチェーンを作成
-        ai_messages = self.llm.batch(prompt_values)  # type: ignore[arg-type]
+        ai_messages = self.llm.batch(message_lists)  # type: ignore[arg-type]
         return [ai_message.content for ai_message in ai_messages]  # type: ignore[misc]
 
     def _create_interviews(
@@ -201,36 +173,26 @@ class InformationEvaluator:
 
     # ユーザーリクエストとインタビュー結果を基に情報の十分性を評価
     def run(self, user_request: str, interviews: list[Interview]) -> EvaluationResult:
-        # プロンプトを定義
-        prompt = ChatPromptTemplate.from_messages(
-            [
-                (
-                    "system",
-                    "あなたは包括的な要件文書を作成するための情報の十分性を評価する専門家です。",
-                ),
-                (
-                    "human",
-                    "以下のユーザーリクエストとインタビュー結果に基づいて、包括的な要件文書を作成するのに十分な情報が集まったかどうかを判断してください。\n\n"
-                    "ユーザーリクエスト: {user_request}\n\n"
-                    "インタビュー結果:\n{interview_results}",
-                ),
-            ]
-        )
         # 情報の十分性を評価するためのプロンプトを作成
-        prompt_value = prompt.invoke(
-            {
-                "user_request": user_request,
-                "interview_results": "\n".join(
-                    f"ペルソナ: {i.persona.name} - {i.persona.background}\n"
-                    f"質問: {i.question}\n回答: {i.answer}\n"
-                    for i in interviews
-                ),
-            }
+        interview_results = "\n".join(
+            f"ペルソナ: {i.persona.name} - {i.persona.background}\n"
+            f"質問: {i.question}\n回答: {i.answer}\n"
+            for i in interviews
         )
+        messages = [
+            SystemMessage(
+                content="あなたは包括的な要件文書を作成するための情報の十分性を評価する専門家です。"
+            ),
+            HumanMessage(
+                content=f"以下のユーザーリクエストとインタビュー結果に基づいて、包括的な要件文書を作成するのに十分な情報が集まったかどうかを判断してください。\n\n"
+                f"ユーザーリクエスト: {user_request}\n\n"
+                f"インタビュー結果:\n{interview_results}"
+            ),
+        ]
 
         # 情報の十分性を評価
         llm_with_structure = self.llm.with_structured_output(EvaluationResult)
-        return llm_with_structure.invoke(prompt_value)  # type: ignore[return-value]
+        return llm_with_structure.invoke(messages)  # type: ignore[return-value]
 
 
 # 要件定義書を生成するクラス
@@ -239,44 +201,34 @@ class RequirementsDocumentGenerator:
         self.llm = llm
 
     def run(self, user_request: str, interviews: list[Interview]) -> str:
-        # プロンプトを定義
-        prompt = ChatPromptTemplate.from_messages(
-            [
-                (
-                    "system",
-                    "あなたは収集した情報に基づいて要件文書を作成する専門家です。",
-                ),
-                (
-                    "human",
-                    "以下のユーザーリクエストと複数のペルソナからのインタビュー結果に基づいて、要件文書を作成してください。\n\n"
-                    "ユーザーリクエスト: {user_request}\n\n"
-                    "インタビュー結果:\n{interview_results}\n"
-                    "要件文書には以下のセクションを含めてください:\n"
-                    "1. プロジェクト概要\n"
-                    "2. 主要機能\n"
-                    "3. 非機能要件\n"
-                    "4. 制約条件\n"
-                    "5. ターゲットユーザー\n"
-                    "6. 優先順位\n"
-                    "7. リスクと軽減策\n\n"
-                    "出力は必ず日本語でお願いします。\n\n要件文書:",
-                ),
-            ]
-        )
         # 要件定義書を生成するためのプロンプトを作成
-        prompt_value = prompt.invoke(
-            {
-                "user_request": user_request,
-                "interview_results": "\n".join(
-                    f"ペルソナ: {i.persona.name} - {i.persona.background}\n"
-                    f"質問: {i.question}\n回答: {i.answer}\n"
-                    for i in interviews
-                ),
-            }
+        interview_results = "\n".join(
+            f"ペルソナ: {i.persona.name} - {i.persona.background}\n"
+            f"質問: {i.question}\n回答: {i.answer}\n"
+            for i in interviews
         )
+        messages = [
+            SystemMessage(
+                content="あなたは収集した情報に基づいて要件文書を作成する専門家です。"
+            ),
+            HumanMessage(
+                content=f"以下のユーザーリクエストと複数のペルソナからのインタビュー結果に基づいて、要件文書を作成してください。\n\n"
+                f"ユーザーリクエスト: {user_request}\n\n"
+                f"インタビュー結果:\n{interview_results}\n"
+                f"要件文書には以下のセクションを含めてください:\n"
+                f"1. プロジェクト概要\n"
+                f"2. 主要機能\n"
+                f"3. 非機能要件\n"
+                f"4. 制約条件\n"
+                f"5. ターゲットユーザー\n"
+                f"6. 優先順位\n"
+                f"7. リスクと軽減策\n\n"
+                f"出力は必ず日本語でお願いします。\n\n要件文書:"
+            ),
+        ]
 
         # 要件定義書を生成
-        ai_message = self.llm.invoke(prompt_value)
+        ai_message = self.llm.invoke(messages)
         return ai_message.content  # type: ignore[return-value]
 
 
