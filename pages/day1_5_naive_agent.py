@@ -134,4 +134,5 @@ def app() -> None:
     messages.extend(new_messages)
 
 
-app()
+if __name__ == "__main__":
+    app()
