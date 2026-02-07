@@ -47,7 +47,7 @@ def _reciprocal_rank_fusion(
     # 検索クエリごとにループ
     for docs in retriever_outputs:
         # 検索結果のドキュメントごとにループ
-        for rank, doc in enumerate(docs):
+        for rank, doc in enumerate(docs, start=1):
             # ドキュメントをメタデータ含め文字列化
             doc_str = dumps(doc)
 
