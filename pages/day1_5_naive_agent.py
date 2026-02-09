@@ -39,11 +39,16 @@ def create_agent_with_tools(
         # ShellTool(),
     ]
 
-    model = init_chat_model(
-        model=model_name,
-        model_provider="openai",
-        reasoning_effort=reasoning_effort,
-    )
+    # reasoning_effort が "none" の場合はパラメータを渡さない（モデルのデフォルトを使用）
+    # GPT-5系: デフォルト "medium"、GPT-5.1+: デフォルト "none"
+    model_kwargs: dict[str, str] = {
+        "model": model_name,
+        "model_provider": "openai",
+    }
+    if reasoning_effort != "none":
+        model_kwargs["reasoning_effort"] = reasoning_effort
+
+    model = init_chat_model(**model_kwargs)
     return create_agent(model=model, tools=tools)
 
 
