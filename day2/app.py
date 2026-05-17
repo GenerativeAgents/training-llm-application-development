@@ -1,62 +1,30 @@
-from typing import Iterator
+import time
+from typing import Generator
 
 import streamlit as st
-from dotenv import load_dotenv
-from langchain.chat_models import init_chat_model
-from langchain_core.messages import (
-    AIMessage,
-    BaseMessage,
-    BaseMessageChunk,
-    HumanMessage,
-    SystemMessage,
-)
+
+response_message = "Streamlitのセットアップが完了しました！"
 
 
-def stream_llm(messages: list[BaseMessage]) -> Iterator[BaseMessageChunk]:
-    model = init_chat_model(
-        model="gpt-5-nano",
-        model_provider="openai",
-        reasoning_effort="minimal",
-    )
-
-    all_messages = [SystemMessage(content="You are a helpful assistant.")] + messages
-    return model.stream(all_messages)
+def generate_stream_response() -> Generator[str, None, None]:
+    for char in response_message:
+        time.sleep(0.02)
+        yield char
 
 
 def app() -> None:
-    load_dotenv(override=True)
+    st.title("動作確認")
 
-    st.title("Simple Chatbot")
-
-    # 会話履歴を初期化
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
-    messages: list[BaseMessage] = st.session_state.messages
-
-    # 会話履歴を表示
-    for message in messages:
-        with st.chat_message(message.type):
-            st.write(message.content)
-
-    # ユーザーの入力を受け付ける
     human_message = st.chat_input()
     if not human_message:
         return
 
-    # ユーザーの入力を表示
     with st.chat_message("human"):
         st.write(human_message)
 
-    # ユーザーの入力を会話履歴に追加
-    messages.append(HumanMessage(content=human_message))
-
-    # 応答を生成して表示
-    stream = stream_llm(messages)
+    stream = generate_stream_response()
     with st.chat_message("ai"):
-        ai_message = st.write_stream(stream)
-
-    # LLMの応答を会話履歴を追加
-    messages.append(AIMessage(content=ai_message))
+        st.write_stream(stream)
 
 
 app()
