@@ -26,7 +26,7 @@ def stream_llm(messages: list[BaseMessage]) -> Iterator[BaseMessageChunk]:
 def app() -> None:
     load_dotenv(override=True)
 
-    st.title("Simple Chatbot")
+    st.title("チャットボット")
 
     # 会話履歴を初期化
     if "messages" not in st.session_state:
