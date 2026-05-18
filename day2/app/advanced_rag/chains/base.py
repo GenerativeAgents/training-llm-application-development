@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Generator, Sequence
+from typing import Generator, Sequence
 
 from langchain_core.documents import Document
 
@@ -14,24 +14,24 @@ class AnswerToken:
         self.token = token
 
 
+class WeaveCallId:
+    def __init__(self, weave_call_id: str | None):
+        self.weave_call_id = weave_call_id
+
+
 class BaseRAGChain(ABC):
     @abstractmethod
-    def stream(self, question: str) -> Generator[Context | AnswerToken, None, None]:
+    def stream(
+        self, question: str
+    ) -> Generator[Context | AnswerToken | WeaveCallId, None, None]:
         pass
 
 
-def reduce_fn(chunks: Sequence[Context | AnswerToken]) -> Any:
-    context: Sequence[Document] = []
-    answer: str = ""
+def accumulator(acc: str | None, val: Context | AnswerToken | WeaveCallId) -> str:
+    if acc is None:
+        acc = ""
 
-    for chunk in chunks:
-        if isinstance(chunk, Context):
-            context = chunk.documents
+    if isinstance(val, AnswerToken):
+        acc += val.token
 
-        if isinstance(chunk, AnswerToken):
-            answer += chunk.token
-
-    return {
-        "context": context,
-        "answer": answer,
-    }
+    return acc

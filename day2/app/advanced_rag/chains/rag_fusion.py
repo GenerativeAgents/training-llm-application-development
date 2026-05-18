@@ -1,14 +1,20 @@
 from typing import Generator
 
+import weave
 from langchain.embeddings import init_embeddings
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
 from langchain_core.language_models import BaseChatModel
 from langchain_core.load import dumps, loads
-from langsmith import traceable
 from pydantic import BaseModel, Field
 
-from app.advanced_rag.chains.base import AnswerToken, BaseRAGChain, Context, reduce_fn
+from app.advanced_rag.chains.base import (
+    AnswerToken,
+    BaseRAGChain,
+    Context,
+    WeaveCallId,
+    accumulator,
+)
 
 
 class QueryGenerationOutput(BaseModel):
@@ -36,7 +42,7 @@ _generate_answer_prompt_template = '''
 '''
 
 
-@traceable
+@weave.op
 def _reciprocal_rank_fusion(
     retriever_outputs: list[list[Document]],
     k: int = 60,
@@ -75,8 +81,13 @@ class RAGFusionRAGChain(BaseRAGChain):
         )
         self.retriever = vector_store.as_retriever(search_kwargs={"k": 5})
 
-    @traceable(name="rag_fusion", reduce_fn=reduce_fn)
-    def stream(self, question: str) -> Generator[Context | AnswerToken, None, None]:
+    @weave.op(name="rag_fusion", accumulator=accumulator)
+    def stream(
+        self, question: str
+    ) -> Generator[Context | AnswerToken | WeaveCallId, None, None]:
+        current_call = weave.require_current_call()
+        yield WeaveCallId(weave_call_id=current_call.id)
+
         # 検索クエリを生成する
         query_generation_prompt = _query_generation_prompt_template.format(
             question=question

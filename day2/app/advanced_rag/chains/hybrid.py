@@ -1,5 +1,6 @@
 from typing import Generator
 
+import weave
 from langchain.embeddings import init_embeddings
 from langchain_chroma import Chroma
 from langchain_community.document_loaders import DirectoryLoader, TextLoader
@@ -8,9 +9,14 @@ from langchain_core.documents import Document
 from langchain_core.language_models import BaseChatModel
 from langchain_core.load import dumps, loads
 from langchain_core.runnables import RunnableParallel
-from langsmith import traceable
 
-from app.advanced_rag.chains.base import AnswerToken, BaseRAGChain, Context, reduce_fn
+from app.advanced_rag.chains.base import (
+    AnswerToken,
+    BaseRAGChain,
+    Context,
+    WeaveCallId,
+    accumulator,
+)
 
 _generate_answer_prompt_template = '''
 以下の文脈だけを踏まえて質問に回答してください。
@@ -23,7 +29,7 @@ _generate_answer_prompt_template = '''
 '''
 
 
-@traceable
+@weave.op
 def _reciprocal_rank_fusion(
     retriever_outputs: list[list[Document]],
     k: int = 60,
@@ -75,9 +81,13 @@ class HybridRAGChain(BaseRAGChain):
             {"run_name": "bm25_retriever"}
         )
 
-    @traceable(name="hybrid", reduce_fn=reduce_fn)
-    def stream(self, question: str) -> Generator[Context | AnswerToken, None, None]:
-        # 並列で検索する準備
+    @weave.op(name="hybrid", accumulator=accumulator)
+    def stream(
+        self, question: str
+    ) -> Generator[Context | AnswerToken | WeaveCallId, None, None]:
+        current_call = weave.require_current_call()
+        yield WeaveCallId(weave_call_id=current_call.id)  # 並列で検索する準備
+
         parallel_retriever = RunnableParallel(
             {
                 "chroma_documents": self.chroma_retriever,

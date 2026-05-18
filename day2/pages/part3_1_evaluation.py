@@ -1,13 +1,14 @@
+import asyncio
 import time
 from typing import Any
 
 import streamlit as st
+import weave
 from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
 from langchain_core.documents import Document
-from langchain_core.messages import HumanMessage
-from langsmith.evaluation import evaluate
 from pydantic import BaseModel, Field
+from weave import Evaluation, Model
 
 from app.advanced_rag.chains.base import AnswerToken, BaseRAGChain, Context
 from app.advanced_rag.factory import chain_constructor_by_name, create_rag_chain
@@ -15,12 +16,11 @@ from app.advanced_rag.factory import chain_constructor_by_name, create_rag_chain
 # RAGの処理を呼び出す関数 (クラス)
 
 
-class Predictor:
-    def __init__(self, chain: BaseRAGChain):
-        self.chain = chain
+class Predictor(Model):
+    chain: BaseRAGChain
 
-    def __call__(self, inputs: dict[str, Any]) -> dict[str, Any]:
-        question = inputs["question"]
+    @weave.op
+    def predict(self, question: str) -> dict[str, Any]:
         context: list[Document] = []
         answer = ""
 
@@ -40,16 +40,17 @@ class Predictor:
 # 検索の評価器 (Evaluator)
 
 
-def context_recall(outputs: dict[str, Any], reference_outputs: dict[str, Any]) -> int:
+@weave.op
+def context_recall(output: dict[str, Any], context: str) -> int:
     """
     想定する情報源のうち、検索結果に含まれた割合を算出します。
     用意しているデータセットでは想定する情報源は1件のみのため、
     検索結果に想定する情報源が含まれる場合は1、含まれない場合は0、
     というスコアになります。
     """
-    output_context: list[Document] = outputs["context"]
+    output_context: list[Document] = output["context"]
     search_result_sources: list[str] = [r.metadata["source"] for r in output_context]
-    ground_truch_source: str = reference_outputs["context"]
+    ground_truch_source: str = context
 
     if ground_truch_source in search_result_sources:
         score = 1
@@ -113,9 +114,8 @@ _answer_hallucination_prompt = """
 """.strip()
 
 
-def answer_hallucination(
-    inputs: dict[str, Any], outputs: dict[str, Any], reference_outputs: dict[str, Any]
-) -> int:
+@weave.op
+def answer_hallucination(output: dict[str, Any], question: str, answer: str) -> int:
     model = init_chat_model(
         model="gpt-5-nano",
         model_provider="openai",
@@ -123,16 +123,16 @@ def answer_hallucination(
     )
     model_with_structure = model.with_structured_output(AnswerHallucinationOutput)
 
-    prompt_text = _answer_hallucination_prompt.format(
-        input=inputs["question"],
-        context=outputs["context"],
-        output=outputs["answer"],
-        reference_outputs=reference_outputs["answer"],
+    prompt = _answer_hallucination_prompt.format(
+        context=output["context"],
+        input=question,
+        output=output["answer"],
+        reference_outputs=answer,
     )
-    output: AnswerHallucinationOutput = model_with_structure.invoke([HumanMessage(content=prompt_text)])  # type: ignore[assignment]
+    result: AnswerHallucinationOutput = model_with_structure.invoke(prompt)  # type: ignore[assignment]
 
     # ハルシネーションのある場合は0、ない場合は1を返す
-    if output.hallucination:
+    if result.hallucination:
         score = 0
     else:
         score = 1
@@ -140,10 +140,9 @@ def answer_hallucination(
 
 
 # Streamlitのアプリ
-
-
 def app() -> None:
     load_dotenv(override=True)
+    weave.init("training-ai-agent-dev")
 
     with st.sidebar:
         reasoning_effort = st.selectbox(
@@ -156,6 +155,10 @@ def app() -> None:
         )
 
     st.title("Evaluation")
+
+    dataset_ref = weave.ref("dataset-example").get()
+    dataset_df = dataset_ref.to_pandas()
+    st.write(dataset_df)
 
     clicked = st.button("実行")
     if not clicked:
@@ -173,15 +176,12 @@ def app() -> None:
         chain = create_rag_chain(chain_name=chain_name, model=model)
         predictor = Predictor(chain=chain)
 
-        evaluate(
-            predictor,
-            data="training-llm-app",
-            evaluators=[context_recall, answer_hallucination],  # type: ignore[list-item]
-            metadata={
-                "reasoning_effort": reasoning_effort,
-                "chain_name": chain_name,
-            },
+        # 評価の実行
+        evaluation = Evaluation(
+            dataset=dataset_ref,
+            scorers=[context_recall, answer_hallucination],
         )
+        asyncio.run(evaluation.evaluate(predictor))
 
         end_time = time.time()
 

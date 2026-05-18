@@ -1,4 +1,7 @@
+import os
+
 import streamlit as st
+import weave
 from dotenv import load_dotenv
 from langchain.embeddings import init_embeddings
 from langchain_chroma import Chroma
@@ -8,6 +11,7 @@ from langchain_text_splitters import CharacterTextSplitter
 
 def app() -> None:
     load_dotenv(override=True)
+    weave.init("training-ai-agent-dev")
 
     st.title("Indexing")
 
@@ -32,6 +36,9 @@ def app() -> None:
 
     # インデクシング
     with st.spinner("Indexing documents..."):
+        # 大量のトレースを保存しないよう、一時的にWeaveを無効化
+        os.environ["WEAVE_DISABLED"] = "true"
+
         embeddings = init_embeddings(model="text-embedding-3-small", provider="openai")
         vector_store = Chroma(
             embedding_function=embeddings,
@@ -39,6 +46,9 @@ def app() -> None:
         )
         vector_store.reset_collection()
         vector_store.add_documents(docs)
+
+        os.environ["WEAVE_DISABLED"] = "false"
+
     st.success("Indexing completed.")
 
 
