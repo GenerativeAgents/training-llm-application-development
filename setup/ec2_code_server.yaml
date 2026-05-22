@@ -483,6 +483,6 @@ Outputs:
       Name: !Sub ${AWS::StackName}-Password
   URL:
     Description: code-server URL
-    Value: !Sub https://${Distribution.DomainName}/?folder=/home/ubuntu/environment/training-llm-application-development-starter
+    Value: !Sub https://${Distribution.DomainName}/?folder=/home/ubuntu/environment/training-llm-application-development
     Export:
       Name: !Sub ${AWS::StackName}-URL
