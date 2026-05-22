@@ -1,0 +1,3 @@
+﻿question,context,answer
+LangSmithとは,tmp/langchain-docs/src/langsmith/home.mdx,LangSmithは、LLMアプリケーションの開発、デバッグ、デプロイを支援するツールです。
+オフライン評価でLLM-as-a-judgeをするには,tmp/langchain-docs/src/langsmith/llm-as-judge.mdx,LLM-as-a-judgeの評価器を用意して、LangSmith SDKのevalute()を呼び出します。
