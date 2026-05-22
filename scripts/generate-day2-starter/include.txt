@@ -1,0 +1,34 @@
+# main.sh が rsync --files-from に渡す「starter にコピーするもの」の一覧。
+# ここに無いファイル/ディレクトリは day2-starter/ に入らない。
+# パスは day2/ からの相対。# 始まりの行と空行は無視される。
+
+# --- ディレクトリ（中身ごとコピー。中の新規ファイルは自動で追従する） ---
+.devcontainer
+.vscode
+data
+
+# --- これらは day2 の中身を入れず、指定したファイルだけを starter に入れる ---
+notebooks/hello.ipynb
+pages/.gitkeep
+tmp/.gitkeep
+
+# --- ルート直下のファイル ---
+.env.template
+.gitignore
+.python-version
+CLAUDE.md
+Makefile
+app.py
+pyproject.toml
+uv.lock
+
+# --- app/ 配下（advanced_rag のチェーンは演習対象を除いて個別に指定） ---
+app/__init__.py
+app/langsmith_docs_mcp.py
+app/advanced_rag/__init__.py
+app/advanced_rag/factory.py
+app/advanced_rag/chains/__init__.py
+app/advanced_rag/chains/base.py
+app/advanced_rag/chains/naive.py
+# 演習対象（受講者が実装）の hyde / multi_query / rag_fusion /
+# rerank / route / hybrid の各 .py は、ここに含めないことで starter から除外する。

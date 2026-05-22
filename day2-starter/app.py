@@ -13,7 +13,7 @@ def generate_stream_response() -> Generator[str, None, None]:
 
 
 def app() -> None:
-    st.title("Hello Streamlit")
+    st.title("動作確認")
 
     human_message = st.chat_input()
     if not human_message:
