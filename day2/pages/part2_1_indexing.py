@@ -5,8 +5,8 @@ import weave
 from dotenv import load_dotenv
 from langchain.embeddings import init_embeddings
 from langchain_chroma import Chroma
-from langchain_community.document_loaders import DirectoryLoader, TextLoader
-from langchain_text_splitters import CharacterTextSplitter
+from langchain_community.document_loaders import DirectoryLoader, PyPDFLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 
 def app() -> None:
@@ -21,16 +21,16 @@ def app() -> None:
 
     # ロード
     loader = DirectoryLoader(
-        # ../tmp/langchain-docs/src/langsmith/ ではないので注意
-        path="./tmp/langchain-docs/src/langsmith/",
-        glob="**/*.mdx",
-        loader_cls=TextLoader,
+        # ../tmp/docs/ ではないので注意
+        path="./tmp/docs/",
+        glob="**/*.pdf",
+        loader_cls=PyPDFLoader,
     )
     raw_docs = loader.load()
     st.info(f"{len(raw_docs)} documents loaded.")
 
     # チャンク化
-    text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
     docs = text_splitter.split_documents(raw_docs)
     st.info(f"{len(docs)} documents chunked.")
 

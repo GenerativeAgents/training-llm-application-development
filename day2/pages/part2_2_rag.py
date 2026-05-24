@@ -36,7 +36,7 @@ def stream_rag(query: str, reasoning_effort: str) -> Iterator[str]:
     retriever = vector_store.as_retriever()
 
     model = init_chat_model(
-        model="gpt-5-nano",
+        model="gpt-5.4-nano",
         model_provider="openai",
         reasoning_effort=reasoning_effort,
     )
@@ -54,7 +54,7 @@ def app() -> None:
     with st.sidebar:
         reasoning_effort = st.selectbox(
             label="reasoning_effort",
-            options=["minimal", "low", "medium", "high"],
+            options=["none", "low", "medium", "high"],
         )
 
     st.title("RAG")

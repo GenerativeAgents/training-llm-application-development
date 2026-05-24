@@ -44,7 +44,7 @@ def app() -> None:
     with st.sidebar:
         reasoning_effort = st.selectbox(
             label="reasoning_effort",
-            options=["minimal", "low", "medium", "high"],
+            options=["none", "low", "medium", "high"],
         )
         chain_name = st.selectbox(
             label="RAG Chain Type",
@@ -64,7 +64,7 @@ def app() -> None:
 
         # 回答を生成して表示
         model = init_chat_model(
-            model="gpt-5-nano",
+            model="gpt-5.4-nano",
             model_provider="openai",
             reasoning_effort=reasoning_effort,
         )

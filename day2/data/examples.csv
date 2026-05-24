@@ -1,3 +1,4 @@
 ﻿question,context,answer
-LangSmithとは,tmp/langchain-docs/src/langsmith/home.mdx,LangSmithは、LLMアプリケーションの開発、デバッグ、デプロイを支援するツールです。
-オフライン評価でLLM-as-a-judgeをするには,tmp/langchain-docs/src/langsmith/llm-as-judge.mdx,LLM-as-a-judgeの評価器を用意して、LangSmith SDKのevalute()を呼び出します。
+公平性が保てていない場合のリスクは？,tmp/docs/AI セーフティに関する評価観点ガイド（第1.10版）.pdf (p.18),LLM システムの出力に有害なバイアスが含まれ、特定の個人または集団に対する不当な差別を助長する可能性があります。また、エンドユーザーがLLMシステムの出力結果を適切に解釈できず、出力された内容を誤解する可能性があります。
+サプライチェーン攻撃の例を教えて,tmp/docs/OWASP_Top_10_for_LLM_Applications_2025.pdf (p.17),PyPiのパッケージレジストリへの攻撃により、攻撃者が仕込んだマルウェア入りのPyTorch依存関係を、モデル開発環境で開発者に誤ってダウンロードさせるケースがありました。
+Tell me about LLM08:2025,tmp/docs/OWASP_Top_10_for_LLM_Applications_2025.pdf (p.33),LLM08:2025 は 「Vector and Embedding Weaknesses（ベクターおよび埋め込みの脆弱性）」 です。

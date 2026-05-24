@@ -49,7 +49,12 @@ def context_recall(output: dict[str, Any], context: str) -> int:
     というスコアになります。
     """
     output_context: list[Document] = output["context"]
-    search_result_sources: list[str] = [r.metadata["source"] for r in output_context]
+    search_result_sources: list[str] = [
+        f"{r.metadata['source']} (p.{r.metadata['page'] + 1})"
+        if "page" in r.metadata
+        else r.metadata["source"]
+        for r in output_context
+    ]
     ground_truch_source: str = context
 
     if ground_truch_source in search_result_sources:
@@ -117,9 +122,9 @@ _answer_hallucination_prompt = """
 @weave.op
 def answer_hallucination(output: dict[str, Any], question: str, answer: str) -> int:
     model = init_chat_model(
-        model="gpt-5-nano",
+        model="gpt-5.4-nano",
         model_provider="openai",
-        reasoning_effort="minimal",
+        reasoning_effort="none",
     )
     model_with_structure = model.with_structured_output(AnswerHallucinationOutput)
 
@@ -147,7 +152,7 @@ def app() -> None:
     with st.sidebar:
         reasoning_effort = st.selectbox(
             label="reasoning_effort",
-            options=["minimal", "low", "medium", "high"],
+            options=["none", "low", "medium", "high"],
         )
         chain_name = st.selectbox(
             label="RAG Chain Type",
@@ -169,7 +174,7 @@ def app() -> None:
 
         # 推論の準備
         model = init_chat_model(
-            model="gpt-5-nano",
+            model="gpt-5.4-nano",
             model_provider="openai",
             reasoning_effort=reasoning_effort,
         )
