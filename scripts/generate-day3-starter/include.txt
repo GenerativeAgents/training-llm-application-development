@@ -1,0 +1,43 @@
+# main.sh が rsync --files-from に渡す「starter にコピーするもの」の一覧。
+# ここに無いファイル/ディレクトリは day3-starter/ に入らない。
+# パスは day3/ からの相対。# 始まりの行と空行は無視される。
+
+# --- ディレクトリ（中身ごとコピー。中の新規ファイルは自動で追従する） ---
+.agents
+.claude
+.devcontainer
+.vscode
+docs
+
+# --- ルート直下のファイル ---
+CLAUDE.md
+README.md
+skills-lock.json
+
+# --- llm-app/ ---
+llm-app/.env.example
+llm-app/.gitignore
+llm-app/pyproject.toml
+llm-app/uv.lock
+llm-app/app
+
+# evals/ は演習対象（受講者が実装）なので __init__.py のみを starter に入れる。
+# dataset.yaml / dataset.draft.yaml / evaluators/ / run_eval.py / upload_dataset.py は除外。
+llm-app/evals/__init__.py
+
+# --- web/ ---
+web/.gitignore
+web/README.md
+web/components.json
+web/eslint.config.mjs
+web/next.config.ts
+web/package-lock.json
+web/package.json
+web/postcss.config.mjs
+web/tsconfig.json
+web/public
+web/scripts
+web/src
+
+# web/data/ は .gitkeep のみ入れ、SQLite ファイル (inquiries.db*) は入れない。
+web/data/.gitkeep

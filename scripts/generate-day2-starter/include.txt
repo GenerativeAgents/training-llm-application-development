@@ -24,7 +24,7 @@ uv.lock
 
 # --- app/ 配下（advanced_rag のチェーンは演習対象を除いて個別に指定） ---
 app/__init__.py
-app/langsmith_docs_mcp.py
+app/random_number_mcp.py
 app/advanced_rag/__init__.py
 app/advanced_rag/factory.py
 app/advanced_rag/chains/__init__.py
