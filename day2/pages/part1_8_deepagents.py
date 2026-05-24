@@ -148,7 +148,7 @@ def show_message(message: BaseMessage) -> None:
 
 
 def handle_agent_stream_chunk(chunk: AgentStreamChunk, ui_state: UIState) -> None:
-    if isinstance(chunk, ActionRequests):
+    if type(chunk).__name__ == "ActionRequests":
         ui_state.show_approve_button = True
     else:
         show_message(chunk)
