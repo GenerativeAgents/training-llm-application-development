@@ -22,7 +22,11 @@ class SessionState(BaseModel):
 def show_context(context: Sequence[Document]) -> None:
     st.write("### 検索結果")
     for doc in context:
-        source = doc.metadata["source"]
+        source = (
+            f"{doc.metadata['source']} (p.{doc.metadata['page'] + 1})"
+            if "page" in doc.metadata
+            else doc.metadata["source"]
+        )
         content = doc.page_content
         with st.expander(source):
             st.text(content)
@@ -60,8 +64,6 @@ def app() -> None:
 
     # 質問が変わった場合
     if question != st.session_state.state.question:
-        st.session_state.state.question = question
-
         # 回答を生成して表示
         model = init_chat_model(
             model="gpt-5.4-nano",
@@ -91,6 +93,7 @@ def app() -> None:
                 answer += chunk.token
                 placeholder.write(answer)
 
+            st.session_state.state.question = question
             st.session_state.state.answer = answer
     else:
         context = st.session_state.state.context
