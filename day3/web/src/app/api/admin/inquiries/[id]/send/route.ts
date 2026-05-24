@@ -18,12 +18,12 @@ export const POST = (request: Request, context: { params: Promise<{ id: string }
     let editDistance: number | null = null;
     let operatorEditedTopic: boolean = inquiry.topic !== inquiry.original_topic;
 
-    if (inquiry.run_id && inquiry.original_topic && inquiry.topic) {
+    if (inquiry.weave_call_id && inquiry.original_topic && inquiry.topic) {
       const fbRes = await fetch(`${LLM_API_URL}/api/feedback`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          run_id: inquiry.run_id,
+          weave_call_id: inquiry.weave_call_id,
           ai_body: inquiry.generated_draft?.body ?? "",
           final_body: responseBody,
           original_topic: inquiry.original_topic,

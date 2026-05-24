@@ -26,7 +26,7 @@ export async function runGenerateDraftJob({
       classification_confidence: draftResult.classification_confidence,
       generated_draft: draftResult.generated_draft,
       quality_alert: draftResult.quality_alert,
-      run_id: draftResult.run_id,
+      weave_call_id: draftResult.weave_call_id,
     });
 
     console.log(`AI response generated for inquiry ${inquiryId}`);

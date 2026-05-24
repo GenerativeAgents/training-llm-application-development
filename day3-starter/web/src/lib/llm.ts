@@ -11,7 +11,7 @@ interface GenerateResponse {
   classification_confidence: number;
   generated_draft: GeneratedDraft | null;
   quality_alert: boolean;
-  run_id: string | null;
+  weave_call_id: string | null;
 }
 
 interface FastAPIResponse {
@@ -22,7 +22,7 @@ interface FastAPIResponse {
     body: string;
     quality_scores: QualityScores;
   } | null;
-  run_id: string | null;
+  weave_call_id: string | null;
 }
 
 const LLM_API_URL = process.env.LLM_API_URL ?? "http://localhost:8000";
@@ -52,6 +52,6 @@ export async function generateDraft(
     classification_confidence: data.classification_confidence,
     generated_draft: data.generated_draft,
     quality_alert: qualityAlert,
-    run_id: data.run_id,
+    weave_call_id: data.weave_call_id,
   };
 }
