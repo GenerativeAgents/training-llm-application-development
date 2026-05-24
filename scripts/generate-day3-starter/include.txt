@@ -3,8 +3,6 @@
 # パスは day3/ からの相対。# 始まりの行と空行は無視される。
 
 # --- ディレクトリ（中身ごとコピー。中の新規ファイルは自動で追従する） ---
-.agents
-.claude
 .devcontainer
 .vscode
 docs
@@ -12,7 +10,6 @@ docs
 # --- ルート直下のファイル ---
 CLAUDE.md
 README.md
-skills-lock.json
 
 # --- llm-app/ ---
 llm-app/.env.example
