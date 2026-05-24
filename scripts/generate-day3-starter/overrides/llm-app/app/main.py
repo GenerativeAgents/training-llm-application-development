@@ -1,14 +1,10 @@
-import weave
-from dotenv import load_dotenv
 from fastapi import FastAPI
-from openevals.string.levenshtein import levenshtein_distance
+from langsmith import traceable
+from langsmith.run_helpers import get_current_run_tree
 from pydantic import BaseModel
 
 from app.generate.graph import graph
 from app.generate.types import QualityJudgment, TopicType
-
-load_dotenv()
-weave_client = weave.init("training-ai-agent-dev")
 
 app = FastAPI(
     title="LLM App",
@@ -42,11 +38,11 @@ class GenerateResponse(BaseModel):
     topic: TopicType
     classification_confidence: float
     generated_draft: GeneratedDraft | None
-    weave_call_id: str | None
+    run_id: str | None
 
 
 @app.post("/api/generate")
-@weave.op()
+@traceable
 async def generate(req: GenerateRequest) -> GenerateResponse:
     result = await graph.ainvoke(
         {
@@ -55,8 +51,8 @@ async def generate(req: GenerateRequest) -> GenerateResponse:
             "content": req.content,
         },
     )
-    call = weave.get_current_call()
-    weave_call_id = str(call.id) if call is not None else None
+    rt = get_current_run_tree()
+    run_id = str(rt.id) if rt is not None else None
 
     topic = result["topic"]
     classification_confidence = result["classification_confidence"]
@@ -77,35 +73,5 @@ async def generate(req: GenerateRequest) -> GenerateResponse:
         topic=topic,
         classification_confidence=classification_confidence,
         generated_draft=generated_draft,
-        weave_call_id=weave_call_id,
+        run_id=run_id,
     )
-
-
-class FeedbackRequest(BaseModel):
-    weave_call_id: str
-    ai_body: str
-    final_body: str
-    original_topic: str
-    current_topic: str
-
-
-class FeedbackResponse(BaseModel):
-    operator_edited_topic: bool
-    edit_distance: float
-
-
-@app.post("/api/feedback")
-async def post_feedback(req: FeedbackRequest) -> FeedbackResponse:
-    call = weave_client.get_call(req.weave_call_id)
-
-    # operator_edited_topic: 編集なし (AI正解)=1.0、編集あり=0.0
-    edited = req.original_topic != req.current_topic
-    topic_score = 0.0 if edited else 1.0
-    call.feedback.add("operator_edited_topic", {"value": topic_score})
-
-    # openevals で edit_distance を算出 (1.0=完全一致、0.0=完全不一致)
-    result = levenshtein_distance(outputs=req.final_body, reference_outputs=req.ai_body)
-    edit_score = result["score"]
-    call.feedback.add("edit_distance", {"value": edit_score})
-
-    return FeedbackResponse(operator_edited_topic=edited, edit_distance=edit_score)

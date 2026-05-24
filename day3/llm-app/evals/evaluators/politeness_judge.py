@@ -1,5 +1,6 @@
 from typing import Any, Literal
 
+import weave
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
 
@@ -43,17 +44,18 @@ class PolitenessJudgeResult(BaseModel):
     reason: str = Field(description="判定理由の簡潔な説明")
 
 
-def politeness_judge(inputs: dict[str, Any], outputs: dict[str, Any]) -> dict[str, Any]:
+@weave.op()
+def politeness_judge(output: dict[str, Any], content: str) -> dict[str, Any]:
     """回答メールの敬語・丁寧さを LLM で評価する。"""
+    if "response_body" not in output:
+        return {"key": "politeness_judge", "score": None, "comment": "skip: no response_body"}
+
     model = get_model(thinking=True)
     model_with_structure = model.with_structured_output(PolitenessJudgeResult)
 
-    if "response_body" not in outputs:
-        return {"key": "politeness_judge", "score": None, "comment": "skip: no response_body"}
-
     user_content = _USER_PROMPT_TEMPLATE.format(
-        content=inputs["content"],
-        response_body=outputs["response_body"],
+        content=content,
+        response_body=output["response_body"],
     )
     messages = [
         SystemMessage(content=_SYSTEM_PROMPT_TEMPLATE),

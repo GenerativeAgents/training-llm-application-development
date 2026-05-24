@@ -1,5 +1,6 @@
 from typing import Any, Literal
 
+import weave
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
 
@@ -49,17 +50,18 @@ class ForbiddenContentJudgeResult(BaseModel):
     reason: str = Field(description="判定理由の簡潔な説明")
 
 
-def forbidden_content_judge(inputs: dict[str, Any], outputs: dict[str, Any]) -> dict[str, Any]:
+@weave.op()
+def forbidden_content_judge(output: dict[str, Any], content: str) -> dict[str, Any]:
     """回答メールに禁止コンテンツが含まれていないかを LLM で評価する。"""
+    if "response_body" not in output:
+        return {"key": "forbidden_content_judge", "score": None, "comment": "skip: no response_body"}
+
     model = get_model(thinking=True)
     model_with_structure = model.with_structured_output(ForbiddenContentJudgeResult)
 
-    if "response_body" not in outputs:
-        return {"key": "forbidden_content_judge", "score": None, "comment": "skip: no response_body"}
-
     user_content = _USER_PROMPT_TEMPLATE.format(
-        content=inputs["content"],
-        response_body=outputs["response_body"],
+        content=content,
+        response_body=output["response_body"],
     )
     messages = [
         SystemMessage(content=_SYSTEM_PROMPT_TEMPLATE),

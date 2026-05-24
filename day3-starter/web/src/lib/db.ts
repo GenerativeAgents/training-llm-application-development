@@ -36,7 +36,7 @@ export interface Inquiry {
   classification_confidence: number | null;
   quality_alert: boolean;
   edit_distance: number | null;
-  run_id: string | null;
+  weave_call_id: string | null;
   created_at: string;
   updated_at: string;
   sent_at: string | null;
@@ -82,7 +82,7 @@ function initSchema(database: Database.Database) {
       classification_confidence REAL,
       quality_alert INTEGER NOT NULL DEFAULT 0,
       edit_distance REAL,
-      run_id TEXT,
+      weave_call_id TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       sent_at TEXT
@@ -93,18 +93,6 @@ function initSchema(database: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_inquiries_status ON inquiries(status);
     CREATE INDEX IF NOT EXISTS idx_inquiries_created_at ON inquiries(created_at DESC);
   `);
-
-  // 既存データベースのマイグレーション
-  const columns = database.pragma("table_info(inquiries)") as { name: string }[];
-  if (!columns.some((col) => col.name === "run_id")) {
-    database.exec("ALTER TABLE inquiries ADD COLUMN run_id TEXT");
-  }
-  if (!columns.some((col) => col.name === "classification_confidence")) {
-    database.exec("ALTER TABLE inquiries ADD COLUMN classification_confidence REAL");
-  }
-  if (columns.some((col) => col.name === "subject")) {
-    database.exec("ALTER TABLE inquiries DROP COLUMN subject");
-  }
 }
 
 // CRUD 操作
@@ -208,7 +196,7 @@ export function updateInquiryWithGeneratedDraft(
     classification_confidence: number;
     generated_draft: GeneratedDraft | null;
     quality_alert: boolean;
-    run_id?: string | null;
+    weave_call_id?: string | null;
   }
 ): Inquiry | null {
   const db = getDb();
@@ -216,7 +204,7 @@ export function updateInquiryWithGeneratedDraft(
 
   const stmt = db.prepare(`
     UPDATE inquiries
-    SET topic = ?, original_topic = ?, classification_confidence = ?, ai_response = ?, quality_alert = ?, run_id = ?, status = 'draft', updated_at = ?
+    SET topic = ?, original_topic = ?, classification_confidence = ?, ai_response = ?, quality_alert = ?, weave_call_id = ?, status = 'draft', updated_at = ?
     WHERE id = ?
   `);
 
@@ -226,7 +214,7 @@ export function updateInquiryWithGeneratedDraft(
     data.classification_confidence,
     data.generated_draft ? JSON.stringify(data.generated_draft) : null,
     data.quality_alert ? 1 : 0,
-    data.run_id ?? null,
+    data.weave_call_id ?? null,
     now,
     id
   );
@@ -334,7 +322,7 @@ function parseInquiryRow(row: Record<string, unknown>): Inquiry {
         : null,
     quality_alert: Boolean(row.quality_alert),
     edit_distance: row.edit_distance != null ? (row.edit_distance as number) : null,
-    run_id: (row.run_id as string | null) ?? null,
+    weave_call_id: (row.weave_call_id as string | null) ?? null,
     created_at: row.created_at as string,
     updated_at: row.updated_at as string,
     sent_at: row.sent_at as string | null,
