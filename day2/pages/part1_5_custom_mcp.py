@@ -15,7 +15,7 @@ async def create_agent_with_tools(
 ) -> CompiledStateGraph:
     client = MultiServerMCPClient(
         {
-            "langsmith-docs": {
+            "random-number": {
                 "command": "uv",
                 "args": [
                     "--directory",
@@ -23,7 +23,7 @@ async def create_agent_with_tools(
                     "run",
                     "python",
                     "-m",
-                    "app.langsmith_docs_mcp",
+                    "app.random_number_mcp",
                 ],
                 "transport": "stdio",
             },
