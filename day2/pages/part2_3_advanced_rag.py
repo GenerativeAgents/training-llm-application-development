@@ -14,7 +14,7 @@ def app() -> None:
     with st.sidebar:
         reasoning_effort = st.selectbox(
             label="reasoning_effort",
-            options=["minimal", "low", "medium", "high"],
+            options=["none", "low", "medium", "high"],
         )
         chain_name = st.selectbox(
             label="RAG Chain Type",
@@ -28,22 +28,28 @@ def app() -> None:
     if not question:
         return
 
-    # 回答を生成して表示
+    # モデル初期化
     model = init_chat_model(
-        model="gpt-5-nano",
+        model="gpt-5.4-nano",
         model_provider="openai",
         reasoning_effort=reasoning_effort,
     )
 
+    # 指定されたグラフ名の実装を取得（app/advanced_rag/factory.py で実装）
     chain = create_rag_chain(chain_name=chain_name, model=model)
 
+    # 回答を生成して表示
     answer_start = False
     answer = ""
     for chunk in chain.stream(question):
         if isinstance(chunk, Context):
             st.write("### 検索結果")
             for doc in chunk.documents:
-                source = doc.metadata["source"]
+                source = (
+                    f"{doc.metadata['source']} (p.{doc.metadata['page'] + 1})"
+                    if "page" in doc.metadata
+                    else doc.metadata["source"]
+                )
                 content = doc.page_content
                 with st.expander(source):
                     st.text(content)

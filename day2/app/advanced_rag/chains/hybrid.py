@@ -3,7 +3,7 @@ from typing import Generator
 import weave
 from langchain.embeddings import init_embeddings
 from langchain_chroma import Chroma
-from langchain_community.document_loaders import DirectoryLoader, TextLoader
+from langchain_community.document_loaders import DirectoryLoader, PyPDFLoader
 from langchain_community.retrievers import BM25Retriever
 from langchain_core.documents import Document
 from langchain_core.language_models import BaseChatModel
@@ -72,12 +72,12 @@ class HybridRAGChain(BaseRAGChain):
 
         # BM25を使った検索の準備
         loader = DirectoryLoader(
-            path="tmp/langchain-docs/src/langsmith/",
-            glob="**/*.mdx",
-            loader_cls=TextLoader,
+            path="tmp/docs/",
+            glob="**/*.pdf",
+            loader_cls=PyPDFLoader,
         )
         documents = loader.load()
-        self.bm25_retriever = BM25Retriever.from_documents(documents, k=10).with_config(
+        self.bm25_retriever = BM25Retriever.from_documents(documents, k=20).with_config(
             {"run_name": "bm25_retriever"}
         )
 

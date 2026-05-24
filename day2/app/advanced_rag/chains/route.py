@@ -18,7 +18,7 @@ from app.advanced_rag.chains.base import (
 
 
 class Route(str, Enum):
-    langsmith_document = "langsmith_document"
+    llm_safety_document = "llm_safety_document"
     web = "web"
 
 
@@ -28,7 +28,7 @@ class RouteOutput(BaseModel):
 
 _route_prompt_template = """\
 質問に回答するために適切なRetrieverを選択してください。
-用意しているのは、LangSmithに関する情報を検索する「langsmith_document」と、
+用意しているのは、LLMの安全性に関する情報を検索する「llm_safety_document」と、
 それ以外の質問をWebサイトで検索するための「web」です。
 
 質問: {question}
@@ -49,15 +49,15 @@ _generate_answer_prompt_template = '''
 class RouteRAGChain(BaseRAGChain):
     def __init__(self, model: BaseChatModel):
         self.model = model
-        # LangChainのドキュメントを検索する準備
+        # LLMの安全性に関するドキュメントを検索する準備
         embeddings = init_embeddings(model="text-embedding-3-small", provider="openai")
         vector_store = Chroma(
             embedding_function=embeddings,
             persist_directory="./tmp/chroma",
         )
-        self.langsmith_document_retriever = vector_store.as_retriever(
+        self.llm_safety_document_retriever = vector_store.as_retriever(
             search_kwargs={"k": 5}
-        ).with_config({"run_name": "langsmith_document_retriever"})
+        ).with_config({"run_name": "llm_safety_document_retriever"})
 
         # Web検索の準備
         self.web_retriever = TavilySearchAPIRetriever(k=5).with_config(
@@ -78,8 +78,8 @@ class RouteRAGChain(BaseRAGChain):
         route = route_output.route
 
         # ルーティングに応じて検索
-        if route == Route.langsmith_document:
-            documents = self.langsmith_document_retriever.invoke(question)
+        if route == Route.llm_safety_document:
+            documents = self.llm_safety_document_retriever.invoke(question)
         elif route == Route.web:
             documents = self.web_retriever.invoke(question)
 

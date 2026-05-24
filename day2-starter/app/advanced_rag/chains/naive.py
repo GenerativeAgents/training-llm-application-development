@@ -40,14 +40,15 @@ class NaiveRAGChain(BaseRAGChain):
     def stream(
         self, question: str
     ) -> Generator[Context | AnswerToken | WeaveCallId, None, None]:
+        # WeaveのコールIDをWeaveCallIdで返す
         current_call = weave.require_current_call()
         yield WeaveCallId(weave_call_id=current_call.id)
 
-        # 検索して検索結果を返す
+        # 検索して検索結果をContextで返す
         documents = self.retriever.invoke(question)
         yield Context(documents=documents)
 
-        # 回答を生成して徐々に応答を返す
+        # 回答を生成して徐々に応答をAnswerTokenで返す
         prompt = _generate_answer_prompt_template.format(
             context=documents,
             question=question,
