@@ -417,35 +417,6 @@ Resources:
           curl -L https://raw.githubusercontent.com/GenerativeAgents/training-llm-application-development/refs/heads/main/setup/setup.sh | sudo -u ubuntu bash
 
   ########### CloudFront Resources ###########
-  CachePolicy:
-    Type: AWS::CloudFront::CachePolicy
-    Properties:
-      CachePolicyConfig:
-        DefaultTTL: 86400
-        MaxTTL: 31536000
-        MinTTL: 1
-        Name:
-          # prettier-ignore
-          !Join ['-', [!Ref AWS::StackName, 'cache-policy', !Select [4, !Split ['-', !Select [2, !Split ['/', !Ref AWS::StackId]]]]]]
-        ParametersInCacheKeyAndForwardedToOrigin:
-          CookiesConfig:
-            CookieBehavior: all
-          EnableAcceptEncodingGzip: False
-          HeadersConfig:
-            HeaderBehavior: whitelist
-            Headers:
-              - Accept-Charset
-              - Authorization
-              - Origin
-              - Accept
-              - Referer
-              - Host
-              - Accept-Language
-              - Accept-Encoding
-              - Accept-Datetime
-          QueryStringsConfig:
-            QueryStringBehavior: all
-
   Distribution:
     Type: AWS::CloudFront::Distribution
     Properties:
@@ -461,7 +432,8 @@ Resources:
             - PATCH
             - POST
             - DELETE
-          CachePolicyId: !Ref CachePolicy
+          # Managed-CachingDisabled - see https://docs.aws.amazon.com/ja_jp/AmazonCloudFront/latest/DeveloperGuide/using-managed-cache-policies.html
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
           # Managed-AllViewer - see https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-origin-request-policies.html#:~:text=When%20using%20AWS,47e4%2Db989%2D5492eafa07d3
           OriginRequestPolicyId: 216adef6-5c7f-47e4-b989-5492eafa07d3
           TargetOriginId: !GetAtt Instance.PublicDnsName
