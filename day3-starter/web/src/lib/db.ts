@@ -65,7 +65,7 @@ export function getDb(): Database.Database {
   return db;
 }
 
-function initSchema(database: Database.Database) {
+export function initSchema(database: Database.Database) {
   database.exec(`
     CREATE TABLE IF NOT EXISTS inquiries (
       id TEXT PRIMARY KEY,

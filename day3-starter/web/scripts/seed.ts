@@ -3,45 +3,16 @@ import path from "path";
 import fs from "fs";
 import { randomUUID } from "crypto";
 import yaml from "js-yaml";
+import { initSchema } from "../src/lib/db";
 
-// ---------- DB setup (inline to avoid path-alias issues with tsx) ----------
+// ---------- DB setup ----------
+// スキーマ定義は web/src/lib/db.ts の initSchema を信頼ソースとして再利用する
 
 const dbPath = path.join(__dirname, "..", "data", "inquiries.db");
 const db = new Database(dbPath);
 db.pragma("journal_mode = WAL");
 
-db.exec(`
-  CREATE TABLE IF NOT EXISTS inquiries (
-    id TEXT PRIMARY KEY,
-    customer_name TEXT NOT NULL,
-    customer_email TEXT NOT NULL,
-    company_name TEXT,
-    content TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'processing',
-    topic TEXT,
-    original_topic TEXT,
-    operator_edited_topic INTEGER,
-    ai_response TEXT,
-    final_response TEXT,
-    classification_confidence REAL,
-    quality_alert INTEGER NOT NULL DEFAULT 0,
-    edit_distance INTEGER,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    sent_at TEXT
-  )
-`);
-
-db.exec(`
-  CREATE INDEX IF NOT EXISTS idx_inquiries_status ON inquiries(status);
-  CREATE INDEX IF NOT EXISTS idx_inquiries_created_at ON inquiries(created_at DESC);
-`);
-
-// 既存データベースのマイグレーション: 廃止された subject カラムを削除
-const existingColumns = db.pragma("table_info(inquiries)") as { name: string }[];
-if (existingColumns.some((col) => col.name === "subject")) {
-  db.exec("ALTER TABLE inquiries DROP COLUMN subject");
-}
+initSchema(db);
 
 // ---------- Clear existing data ----------
 
