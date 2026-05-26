@@ -1,10 +1,13 @@
+import weave
+from dotenv import load_dotenv
 from fastapi import FastAPI
-from langsmith import traceable
-from langsmith.run_helpers import get_current_run_tree
 from pydantic import BaseModel
 
 from app.generate.graph import graph
 from app.generate.types import QualityJudgment, TopicType
+
+load_dotenv()
+weave_client = weave.init("training-ai-agent-dev")
 
 app = FastAPI(
     title="LLM App",
@@ -42,7 +45,7 @@ class GenerateResponse(BaseModel):
 
 
 @app.post("/api/generate")
-@traceable
+@weave.op()
 async def generate(req: GenerateRequest) -> GenerateResponse:
     result = await graph.ainvoke(
         {
@@ -51,8 +54,8 @@ async def generate(req: GenerateRequest) -> GenerateResponse:
             "content": req.content,
         },
     )
-    rt = get_current_run_tree()
-    run_id = str(rt.id) if rt is not None else None
+    call = weave.get_current_call()
+    weave_call_id = str(call.id) if call is not None else None
 
     topic = result["topic"]
     classification_confidence = result["classification_confidence"]
@@ -73,5 +76,5 @@ async def generate(req: GenerateRequest) -> GenerateResponse:
         topic=topic,
         classification_confidence=classification_confidence,
         generated_draft=generated_draft,
-        run_id=run_id,
+        weave_call_id=weave_call_id,
     )
