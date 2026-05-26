@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import type { Inquiry, InquiryTopic } from "@/lib/db";
+import { apiPath } from "@/lib/api-path";
 
 interface UseDraftEditorParams {
   selectedInquiry: Inquiry | null;
@@ -58,7 +59,7 @@ export function useDraftEditor({
     body: string,
   ): Promise<void> {
     const response = await fetch(
-      `/api/admin/inquiries/${inquiryId}/${endpoint}`,
+      apiPath(`/api/admin/inquiries/${inquiryId}/${endpoint}`),
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -123,7 +124,7 @@ export function useDraftEditor({
     });
     try {
       const response = await fetch(
-        `/api/admin/inquiries/${selectedInquiry.id}/topic`,
+        apiPath(`/api/admin/inquiries/${selectedInquiry.id}/topic`),
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
