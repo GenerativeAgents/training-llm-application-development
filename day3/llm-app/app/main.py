@@ -48,6 +48,9 @@ class GenerateResponse(BaseModel):
 @app.post("/api/generate")
 @weave.op()
 async def generate(req: GenerateRequest) -> GenerateResponse:
+    call = weave.require_current_call()
+    weave_call_id = str(call.id)
+
     result = await graph.ainvoke(
         {
             "customer_name": req.customer_name,
@@ -55,8 +58,6 @@ async def generate(req: GenerateRequest) -> GenerateResponse:
             "content": req.content,
         },
     )
-    call = weave.get_current_call()
-    weave_call_id = str(call.id) if call is not None else None
 
     topic = result["topic"]
     classification_confidence = result["classification_confidence"]
