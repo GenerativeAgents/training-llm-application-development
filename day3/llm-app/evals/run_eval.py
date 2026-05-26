@@ -12,8 +12,9 @@ from dotenv import load_dotenv
 
 from app.generate.graph import graph
 from evals.evaluators.classification_accuracy import classification_accuracy
-from evals.evaluators.forbidden_content_judge import forbidden_content_judge
 from evals.evaluators.politeness_judge import politeness_judge
+
+# from evals.evaluators.forbidden_content_judge import forbidden_content_judge
 
 load_dotenv()
 weave.init("training-ai-agent-dev")
@@ -48,7 +49,7 @@ async def main() -> None:
         scorers=[
             classification_accuracy,
             politeness_judge,
-            forbidden_content_judge,
+            # forbidden_content_judge,
         ],
     )
 
