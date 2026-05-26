@@ -28,6 +28,7 @@ llm-app/app
 # evals/ は演習対象（受講者が実装）なので __init__.py のみを starter に入れる。
 # dataset.yaml / dataset.draft.yaml / evaluators/ / run_eval.py / upload_dataset.py は除外。
 llm-app/evals/__init__.py
+llm-app/evals/evaluators/__init__.py
 
 # --- web/ ---
 web/.env.example
