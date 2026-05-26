@@ -11,6 +11,13 @@ docs
 CLAUDE.md
 README.md
 
+# --- Claude Code skill 構成（受講者にも同じ skill を配布する）---
+# .agents/skills/ は実体、.claude/skills/ 配下はそれへの相対シンボリックリンク。
+# .claude/settings.local.json はローカル設定なので含めない（main.sh の rsync で除外）。
+.agents/skills
+.claude/skills
+skills-lock.json
+
 # --- llm-app/ ---
 llm-app/.env.example
 llm-app/.gitignore
