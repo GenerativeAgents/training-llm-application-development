@@ -88,3 +88,8 @@ shadcn/ui components (in `web/src/components/ui/`) built on Radix UI primitives,
 ## Path Aliases
 
 TypeScript path alias `@/*` maps to `web/src/*` (configured in tsconfig.json).
+
+## Project Notes
+
+- このリポジトリは研修・ハンズオン教材であり、本番運用ではない。DB (`web/data/inquiries.db`) は消して再シードする選択を躊躇なく取ってよい。後方互換シム、ALTER TABLE による既存DBマイグレーション、廃止フィールドのエイリアスなどは書かない。スキーマ変更は `web/src/lib/db.ts` の `initSchema` を直接書き換えて再シードで対応する。
+- 永続化したい知見・ルールはこの `CLAUDE.md` に追記する方針(memory システムは使わない)。
