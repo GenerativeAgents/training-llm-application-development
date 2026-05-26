@@ -41,7 +41,7 @@ class GenerateResponse(BaseModel):
     topic: TopicType
     classification_confidence: float
     generated_draft: GeneratedDraft | None
-    run_id: str | None
+    weave_call_id: str | None
 
 
 @app.post("/api/generate")
