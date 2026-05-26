@@ -30,6 +30,7 @@ llm-app/app
 llm-app/evals/__init__.py
 
 # --- web/ ---
+web/.env.example
 web/.gitignore
 web/README.md
 web/components.json

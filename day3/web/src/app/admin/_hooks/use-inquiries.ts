@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import type { Inquiry, InquiryListItem } from "@/lib/db";
+import { apiPath } from "@/lib/api-path";
 
 export function useInquiries() {
   const [inquiries, setInquiries] = useState<InquiryListItem[]>([]);
@@ -22,7 +23,7 @@ export function useInquiries() {
       }
       params.set("limit", "50");
 
-      const response = await fetch(`/api/admin/inquiries?${params}`);
+      const response = await fetch(apiPath(`/api/admin/inquiries?${params}`));
       if (!response.ok) throw new Error("Failed to fetch inquiries");
 
       const data = await response.json();
@@ -36,7 +37,7 @@ export function useInquiries() {
 
   const fetchInquiryDetail = useCallback(async (id: string) => {
     try {
-      const response = await fetch(`/api/admin/inquiries/${id}`);
+      const response = await fetch(apiPath(`/api/admin/inquiries/${id}`));
       if (!response.ok) throw new Error("Failed to fetch inquiry details");
 
       const data: Inquiry = await response.json();
@@ -53,7 +54,7 @@ export function useInquiries() {
       setIsRetrying(true);
       try {
         const response = await fetch(
-          `/api/admin/inquiries/${id}/retry`,
+          apiPath(`/api/admin/inquiries/${id}/retry`),
           { method: "POST" }
         );
         if (!response.ok) throw new Error("Failed to retry generation");

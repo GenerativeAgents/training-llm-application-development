@@ -93,3 +93,5 @@ TypeScript path alias `@/*` maps to `web/src/*` (configured in tsconfig.json).
 
 - このリポジトリは研修・ハンズオン教材であり、本番運用ではない。DB (`web/data/inquiries.db`) は消して再シードする選択を躊躇なく取ってよい。後方互換シム、ALTER TABLE による既存DBマイグレーション、廃止フィールドのエイリアスなどは書かない。スキーマ変更は `web/src/lib/db.ts` の `initSchema` を直接書き換えて再シードで対応する。
 - 永続化したい知見・ルールはこの `CLAUDE.md` に追記する方針(memory システムは使わない)。
+- code-server などで `/absproxy/3000` 配下にホストする場合は `web/.env` を作成し、`NEXT_PUBLIC_BASE_PATH=/absproxy/3000` と必要に応じて `ALLOWED_DEV_ORIGINS=*.cloudfront.net` を設定する(`web/.env.example` 参照)。ローカル開発時は `.env` を作らない。`.env*` は gitignored で、サンプルの `.env.example` のみコミット対象。
+- client-side fetch でアプリ内 API を叩く際は `web/src/lib/api-path.ts` の `apiPath()` を必ず経由する(basePath プレフィックスを自動付与)。`<Link>` や `useRouter` は Next.js が自動処理するので不要。サーバー側から FastAPI を叩く `LLM_API_URL` 経由の fetch には不要。

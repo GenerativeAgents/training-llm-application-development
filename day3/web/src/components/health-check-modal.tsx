@@ -10,12 +10,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { apiPath } from "@/lib/api-path";
 
 export function HealthCheckModal() {
   const [healthError, setHealthError] = useState(false);
 
   useEffect(() => {
-    fetch("/api/health")
+    fetch(apiPath("/api/health"))
       .then((res) => {
         if (!res.ok) setHealthError(true);
       })

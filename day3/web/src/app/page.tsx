@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { HealthCheckModal } from "@/components/health-check-modal";
+import { apiPath } from "@/lib/api-path";
 
 export default function Home() {
   const [formData, setFormData] = useState({
@@ -39,7 +40,7 @@ export default function Home() {
     setError(null);
 
     try {
-      const response = await fetch("/api/inquiries", {
+      const response = await fetch(apiPath("/api/inquiries"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
