@@ -31,7 +31,7 @@ uv run ruff check .                              # Lint Python code
 uv run mypy .                                    # Type check
 ```
 
-Requires `ANTHROPIC_API_KEY` in `llm-app/.env` (see `.env.example`). Optional: `ANTHROPIC_MODEL` (defaults to claude-sonnet-4-5-20250929).
+Requires `ANTHROPIC_API_KEY` in `llm-app/.env` (see `.env.example`). Optional: `ANTHROPIC_MODEL` (defaults to claude-haiku-4-5-20251001).
 
 The Next.js app connects to FastAPI via `LLM_API_URL` env var (defaults to `http://localhost:8000`).
 
