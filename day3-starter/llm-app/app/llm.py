@@ -7,7 +7,7 @@ from langchain_core.language_models import BaseChatModel
 
 load_dotenv()
 
-ANTHROPIC_MODEL: str = os.environ.get("ANTHROPIC_MODEL") or "claude-sonnet-4-5-20250929"
+ANTHROPIC_MODEL: str = os.environ.get("ANTHROPIC_MODEL") or "claude-haiku-4-5-20251001"
 
 _THINKING_CONFIG: dict[str, Any] = {"type": "enabled", "budget_tokens": 10000}
 _THINKING_MAX_TOKENS = 16000

@@ -721,7 +721,7 @@ confidenceは分類の確信度を0.0〜1.0で表してください。
 ANTHROPIC_API_KEY=sk-ant-xxxxx
 
 # 使用するモデル
-ANTHROPIC_MODEL=claude-sonnet-4-5-20250929
+ANTHROPIC_MODEL=claude-haiku-4-5-20251001
 
 # LangSmithの設定
 LANGSMITH_API_KEY=lsv2_pt_xxxxx
