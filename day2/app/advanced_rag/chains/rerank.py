@@ -1,7 +1,7 @@
 from copy import deepcopy
 from typing import Generator, Sequence
 
-import cohere
+import boto3
 import weave
 from langchain.embeddings import init_embeddings
 from langchain_chroma import Chroma
@@ -26,6 +26,11 @@ _generate_answer_prompt_template = '''
 質問: {question}
 '''
 
+_aws_region = "ap-northeast-1"
+_rerank_model_arn = (
+    f"arn:aws:bedrock:{_aws_region}::foundation-model/cohere.rerank-v3-5:0"
+)
+
 
 @weave.op
 def _rerank(
@@ -33,19 +38,42 @@ def _rerank(
 ) -> Sequence[Document]:
     documents_str = [doc.page_content for doc in documents]
 
-    client = cohere.ClientV2()
+    client = boto3.client("bedrock-agent-runtime", region_name=_aws_region)
+    sources = [
+        {
+            "type": "INLINE",
+            "inlineDocumentSource": {
+                "type": "TEXT",
+                "textDocument": {"text": doc_str},
+            },
+        }
+        for doc_str in documents_str
+    ]
     response = client.rerank(
-        model="rerank-v3.5",
-        query=question,
-        documents=documents_str,
-        top_n=top_n,
+        queries=[
+            {
+                "type": "TEXT",
+                "textQuery": {"text": question},
+            }
+        ],
+        sources=sources,
+        rerankingConfiguration={
+            "type": "BEDROCK_RERANKING_MODEL",
+            "bedrockRerankingConfiguration": {
+                "modelConfiguration": {"modelArn": _rerank_model_arn},
+                "numberOfResults": top_n,
+            },
+        },
     )
 
     reranked_documents: list[Document] = []
-    for result in response.results:
-        doc = documents[result.index]
+    for result in response["results"]:
+        index = result["index"]
+        relevance_score = result["relevanceScore"]
+
+        doc = documents[index]
         doc_copy = Document(doc.page_content, metadata=deepcopy(doc.metadata))
-        doc_copy.metadata["relevance_score"] = result.relevance_score
+        doc_copy.metadata["relevance_score"] = relevance_score
         reranked_documents.append(doc_copy)
 
     return reranked_documents
