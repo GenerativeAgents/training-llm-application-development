@@ -35,7 +35,7 @@ def app() -> None:
         reasoning_effort=reasoning_effort,
     )
 
-    # 指定されたグラフ名の実装を取得（app/advanced_rag/factory.py で実装）
+    # 指定されたRAG名の実装を取得（app/advanced_rag/factory.py で実装）
     chain = create_rag_chain(chain_name=chain_name, model=model)
 
     # 回答を生成して表示
