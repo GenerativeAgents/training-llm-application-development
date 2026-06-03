@@ -6,6 +6,7 @@
 .devcontainer
 .vscode
 data
+app
 
 # --- これらは day2 の中身を入れず、指定したファイルだけを starter に入れる ---
 notebooks/hello.ipynb
@@ -21,14 +22,3 @@ Makefile
 app.py
 pyproject.toml
 uv.lock
-
-# --- app/ 配下（advanced_rag のチェーンは演習対象を除いて個別に指定） ---
-app/__init__.py
-app/random_number_mcp.py
-app/advanced_rag/__init__.py
-app/advanced_rag/factory.py
-app/advanced_rag/chains/__init__.py
-app/advanced_rag/chains/base.py
-app/advanced_rag/chains/naive.py
-# 演習対象（受講者が実装）の hyde / multi_query / rag_fusion /
-# rerank / route / hybrid の各 .py は、ここに含めないことで starter から除外する。
