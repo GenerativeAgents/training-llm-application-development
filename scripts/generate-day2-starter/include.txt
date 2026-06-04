@@ -6,9 +6,11 @@
 .devcontainer
 .vscode
 data
-app
 
-# --- これらは day2 の中身を入れず、指定したファイルだけを starter に入れる ---
+# --- これらは day2 の中身を入れず、指定したファイル/ディレクトリだけを starter に入れる ---
+# app は random_number_mcp.py を含めず、__init__.py と advanced_rag だけ配置する
+app/__init__.py
+app/advanced_rag
 pages/.gitkeep
 tmp/.gitkeep
 
