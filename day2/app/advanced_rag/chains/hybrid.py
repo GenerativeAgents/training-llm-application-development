@@ -77,6 +77,9 @@ class HybridRAGChain(BaseRAGChain):
             loader_cls=PyPDFLoader,
         )
         documents = loader.load()
+        # メタデータのファイルパス先頭に "../" を付与して Chroma 側の source 表記に揃える
+        for document in documents:
+            document.metadata["source"] = "../" + document.metadata["source"]
         self.bm25_retriever = BM25Retriever.from_documents(documents, k=20).with_config(
             {"run_name": "bm25_retriever"}
         )
