@@ -9,7 +9,6 @@ data
 app
 
 # --- これらは day2 の中身を入れず、指定したファイルだけを starter に入れる ---
-notebooks/hello.ipynb
 pages/.gitkeep
 tmp/.gitkeep
 
