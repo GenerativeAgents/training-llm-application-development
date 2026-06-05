@@ -1,3 +1,4 @@
+import os
 from typing import Sequence
 
 import streamlit as st
@@ -34,7 +35,7 @@ def show_context(context: Sequence[Document]) -> None:
 
 def app() -> None:
     load_dotenv(override=True)
-    weave.init("training-ai-agent-dev")
+    weave.init(os.environ["WANDB_PROJECT"])
 
     # ステートを初期化
     if "state" not in st.session_state:
@@ -117,7 +118,7 @@ def app() -> None:
             score = scores[score_key]
             comment = feedback.get("text")
 
-            client = weave.init("training-ai-agent-dev")
+            client = weave.init(os.environ["WANDB_PROJECT"])
             call = client.get_call(weave_call_id)
 
             call.feedback.add_reaction(score_key)

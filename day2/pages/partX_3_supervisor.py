@@ -1,3 +1,5 @@
+import os
+
 import streamlit as st
 import weave
 from dotenv import load_dotenv
@@ -110,7 +112,7 @@ def show_message(message: BaseMessage, ai_massage_type: str | None = None) -> No
 
 def app() -> None:
     load_dotenv(override=True)
-    weave.init("training-ai-agent-dev")
+    weave.init(os.environ["WANDB_PROJECT"])
 
     st.title("Supervisor")
 
