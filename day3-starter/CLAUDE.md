@@ -25,10 +25,10 @@ No test framework is currently configured.
 
 ```bash
 cd llm-app
-uv sync                                          # Install dependencies
-uv run uvicorn app.main:app --reload --port 8000  # Start dev server at localhost:8000
-uv run ruff check .                              # Lint Python code
-uv run mypy .                                    # Type check
+uv sync                                  # Install dependencies
+uv run uvicorn app.main:app --port 8000  # Start dev server at localhost:8000
+uv run ruff check .                      # Lint Python code
+uv run mypy .                            # Type check
 ```
 
 Requires `ANTHROPIC_API_KEY` in `llm-app/.env` (see `.env.example`). Optional: `ANTHROPIC_MODEL` (defaults to claude-haiku-4-5-20251001).

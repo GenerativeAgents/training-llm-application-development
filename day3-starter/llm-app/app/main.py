@@ -5,9 +5,10 @@ from pydantic import BaseModel
 
 from app.generate.graph import graph
 from app.generate.types import QualityJudgment, TopicType
+from app.weave_init import init_weave
 
 load_dotenv()
-weave_client = weave.init("training-ai-agent-dev")
+weave_client = init_weave()
 
 app = FastAPI(
     title="LLM App",

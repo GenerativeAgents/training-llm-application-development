@@ -14,8 +14,10 @@ import weave
 import yaml
 from dotenv import load_dotenv
 
+from app.weave_init import init_weave
+
 load_dotenv()
-weave.init("training-ai-agent-dev")
+init_weave()
 
 
 DATASET_DIR = Path(__file__).parent

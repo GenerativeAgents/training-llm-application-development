@@ -11,13 +11,14 @@ import weave
 from dotenv import load_dotenv
 
 from app.generate.graph import graph
+from app.weave_init import init_weave
 from evals.evaluators.classification_accuracy import classification_accuracy
 from evals.evaluators.politeness_judge import politeness_judge
 
 # from evals.evaluators.forbidden_content_judge import forbidden_content_judge
 
 load_dotenv()
-weave.init("training-ai-agent-dev")
+init_weave()
 
 DEFAULT_DATASET_NAME = "inquiry-response-app"
 
