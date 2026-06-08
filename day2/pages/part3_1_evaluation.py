@@ -1,4 +1,5 @@
 import asyncio
+import os
 import time
 from typing import Any
 
@@ -147,7 +148,7 @@ def answer_hallucination(output: dict[str, Any], question: str, answer: str) -> 
 # Streamlitのアプリ
 def app() -> None:
     load_dotenv(override=True)
-    weave.init("training-ai-agent-dev")
+    weave.init(os.environ["WANDB_PROJECT"])
 
     with st.sidebar:
         reasoning_effort = st.selectbox(

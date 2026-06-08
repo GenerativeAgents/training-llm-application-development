@@ -1,3 +1,5 @@
+import os
+
 import pandas as pd
 import streamlit as st
 import weave
@@ -7,7 +9,7 @@ from weave import Dataset
 
 def app() -> None:
     load_dotenv(override=True)
-    weave.init("training-ai-agent-dev")
+    weave.init(os.environ["WANDB_PROJECT"])
 
     st.title("Create Dataset")
 
