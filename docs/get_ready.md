@@ -102,7 +102,8 @@
 
 講座当日に使うハンズオン環境は、以下の URL でご提供します。
 
-https://<受講者ごとに異なるランダムな文字列>.cloudfront.net
+- https://<受講者ごとに異なるランダムな文字列>.academy.generative-agents.co.jp
+- https://<文字列>.<受講者ごとに異なるランダムな文字列>.academy.generative-agents.co.jp
 
 事前の接続確認の際は、別途メールにてご案内する URL にアクセスしてください。パスワードの入力画面が表示されます。
 
