@@ -98,10 +98,6 @@
 
 [https://academy.generative-agents.co.jp/](https://academy.generative-agents.co.jp/)
 
-また、次の URL にアクセスし、「接続確認できました 🎉」と表示されれば正常です。
-
-[https://80.check-01.academy.generative-agents.co.jp/](https://80.check-01.academy.generative-agents.co.jp/)
-
 ### ⑤ ハンズオン環境
 
 講座当日に使うハンズオン環境は、以下の URL でご提供します。
