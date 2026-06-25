@@ -98,6 +98,10 @@
 
 [https://academy.generative-agents.co.jp/](https://academy.generative-agents.co.jp/)
 
+また、次の URL にアクセスし、「接続確認できました 🎉」と表示されれば正常です。
+
+[https://80.check-01.academy.generative-agents.co.jp/](https://80.check-01.academy.generative-agents.co.jp/)
+
 ### ⑤ ハンズオン環境
 
 講座当日に使うハンズオン環境は、以下の URL でご提供します。
@@ -109,11 +113,8 @@
 
 ![alt text](images/vscode_password.png)
 
-メールでご案内したパスワードを入力してください。次の画面が表示されます。
-
-![alt text](images/vscode_do_you_trust.png)
-
-「Yes, I trust the authors」をクリックし、次のような VS Code の初期画面が表示されれば正常です。
+メールでご案内したパスワードを入力してください。
+次のような VS Code の初期画面が表示されれば正常です。
 
 ![alt text](images/vscode_get_started.png)
 
