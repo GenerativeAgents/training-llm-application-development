@@ -5,9 +5,19 @@ from langchain.chat_models import init_chat_model
 from langchain_community.tools import ShellTool
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
 from langchain_core.tools import tool
-from langchain_tavily import TavilySearch
 from langgraph.graph.state import CompiledStateGraph
 from PIL import Image
+
+from app.tools.web_search import WebSearchResult, web_search
+
+
+@tool
+def search_web(query: str) -> list[WebSearchResult]:
+    """最新の情報や知らないことを Web から検索します。
+
+    検索結果として、本文の抜粋・URL・タイトル・公開日のリストを返します。
+    """
+    return web_search(query, max_results=5)
 
 
 @tool
@@ -28,7 +38,7 @@ def create_agent_with_tools(
     model_name: str, reasoning_effort: str
 ) -> CompiledStateGraph:
     tools = [
-        TavilySearch(max_results=5),
+        search_web,
         # 注意:
         # 講座ではAIエージェントにできることを分かりやすく理解するためにShellToolを使用します。
         # しかし、ShellToolでは予期しないコマンドを実行される可能性があります。

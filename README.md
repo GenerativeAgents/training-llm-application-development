@@ -16,7 +16,7 @@ AIエージェント開発者養成講座で使用するソースコードです
 | `day3/`         | day3 の完全版                                                                        |
 | `day3-starter/` | day3 の受講者配布用 starter（**自動生成**）。直接編集しないこと。                    |
 | `setup/`        | ハンズオン環境の構築（AWS EC2 + code-server）。詳細は `setup/README.md` を参照。     |
-| `docs/`         | 講座準備用ドキュメントと API キー取得ガイド（Cohere、Tavily、Weave、Azure OpenAI）。 |
+| `docs/`         | 講座準備用ドキュメントと API キー取得ガイド（Cohere、Weave、Azure OpenAI）。 |
 | `scripts/`      | starter 生成用スクリプト（下記参照）。                                               |
 
 ## starter の生成

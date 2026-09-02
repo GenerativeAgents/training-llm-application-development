@@ -5,8 +5,8 @@ import streamlit as st
 from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
 from langchain_community.tools import ShellTool
-from langchain_community.tools.tavily_search import TavilySearchResults
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
+from langchain_core.tools import tool
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
@@ -15,6 +15,17 @@ from langgraph.prebuilt import ToolNode
 from langgraph.types import Command, RunnableConfig, interrupt
 from pydantic import BaseModel
 from typing_extensions import TypedDict
+
+from app.tools.web_search import WebSearchResult, web_search
+
+
+@tool
+def search_web(query: str) -> list[WebSearchResult]:
+    """最新の情報や知らないことを Web から検索します。
+
+    検索結果として、本文の抜粋・URL・タイトル・公開日のリストを返します。
+    """
+    return web_search(query, max_results=5)
 
 
 class HumanReviewApprove(BaseModel):
@@ -36,7 +47,7 @@ class Agent:
             model_provider="openai",
             temperature=1,
         )
-        self.tools = [TavilySearchResults(), ShellTool()]
+        self.tools = [search_web, ShellTool()]
 
         graph_builder = StateGraph(State)
 
