@@ -5,7 +5,9 @@ connector）を呼び出す。API キーは不要で、AWS の認証情報（ハ
 で SigV4 署名して呼び出す。
 
 - Gateway の URL は環境変数 ``AGENTCORE_GATEWAY_URL`` から読む
-  （ハンズオン環境では code-server の環境変数として設定済み）。
+  （ハンズオン環境では code-server の環境変数として設定済み）。SigV4 の署名リージョンは
+  この URL のホスト名から導出する。
+- ツール名は環境変数 ``AGENTCORE_WEB_SEARCH_TOOL_NAME`` から読む（未設定なら既定値）。
 - Gateway は MCP サーバーなので、``tools/call`` の JSON-RPC を HTTP POST する。
   MCP SDK は使わず ``requests`` で直接呼び出している。
 
@@ -22,25 +24,26 @@ LangChain のツールや Retriever として使う場合は、呼び出し側�
 import json
 import os
 import random
+import re
 import time
 from typing import Any
+from urllib.parse import urlparse
 
 import boto3
 import requests
 from botocore.auth import SigV4Auth
 from botocore.awsrequest import AWSRequest
 
-# Gateway を作成したリージョン（ハンズオン環境のインフラ側で固定）
-_aws_region = "ap-northeast-1"
-# Gateway が対応する MCP プロトコルバージョン
+# クライアントが使う MCP プロトコルバージョン（ヘッダと _meta の組み立てがこの版に依存する）
 _mcp_protocol_version = "2026-07-28"
-# ツール名は "<Gateway Target 名>___<connector のツール名>" という形式になる
-_tool_name = "web-search-tool___WebSearch"
+# ツール名の既定値。"<Gateway Target 名>___<connector のツール名>" という形式になる
+_default_tool_name = "web-search-tool___WebSearch"
 # Web Search Tool のクォータ（既定 10 リクエスト/秒）を超えると HTTP 429 が返るため、
 # 指数バックオフでリトライする
 _max_retries = 4
 
 _ENV_GATEWAY_URL = "AGENTCORE_GATEWAY_URL"
+_ENV_TOOL_NAME = "AGENTCORE_WEB_SEARCH_TOOL_NAME"
 
 
 def _gateway_url() -> str:
@@ -54,6 +57,23 @@ def _gateway_url() -> str:
     return url
 
 
+def _tool_name() -> str:
+    return os.environ.get(_ENV_TOOL_NAME) or _default_tool_name
+
+
+def _region_from_url(url: str) -> str:
+    """Gateway URL のホスト名（<id>.gateway.bedrock-agentcore.<region>.amazonaws.com）から
+    SigV4 の署名リージョンを取り出す。"""
+    host = urlparse(url).hostname or ""
+    match = re.search(r"\.bedrock-agentcore\.([a-z0-9-]+)\.", host)
+    if match is None:
+        raise RuntimeError(
+            f"Gateway URL からリージョンを判定できません: {url}"
+            "（<id>.gateway.bedrock-agentcore.<region>.amazonaws.com/mcp の形式を想定）"
+        )
+    return match.group(1)
+
+
 def _signed_headers(url: str, body: bytes, headers: dict[str, str]) -> dict[str, str]:
     """AWS の認証情報でリクエストに SigV4 署名を付けたヘッダーを返す。"""
     credentials = boto3.Session().get_credentials()
@@ -64,7 +84,7 @@ def _signed_headers(url: str, body: bytes, headers: dict[str, str]) -> dict[str,
         )
     aws_request = AWSRequest(method="POST", url=url, data=body, headers=headers)
     SigV4Auth(
-        credentials.get_frozen_credentials(), "bedrock-agentcore", _aws_region
+        credentials.get_frozen_credentials(), "bedrock-agentcore", _region_from_url(url)
     ).add_auth(aws_request)
     return dict(aws_request.headers)
 
@@ -99,12 +119,13 @@ def web_search(query: str, max_results: int = 5) -> list[dict[str, Any]]:
     max_results = max(1, min(25, max_results))
 
     url = _gateway_url()
+    tool_name = _tool_name()
     payload = {
         "jsonrpc": "2.0",
         "id": 1,
         "method": "tools/call",
         "params": {
-            "name": _tool_name,
+            "name": tool_name,
             "arguments": {"query": query, "maxResults": max_results},
             "_meta": {
                 "io.modelcontextprotocol/protocolVersion": _mcp_protocol_version,
@@ -124,7 +145,7 @@ def web_search(query: str, max_results: int = 5) -> list[dict[str, Any]]:
         "Accept": "application/json, text/event-stream",
         "MCP-Protocol-Version": _mcp_protocol_version,
         "Mcp-Method": "tools/call",
-        "Mcp-Name": _tool_name,
+        "Mcp-Name": tool_name,
     }
 
     for attempt in range(_max_retries + 1):
