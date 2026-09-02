@@ -1,7 +1,7 @@
 """Amazon Bedrock AgentCore Gateway の Web Search Tool を呼び出すモジュール。
 
-Tavily の代替として、AWS が提供するマネージドな Web 検索（AgentCore Gateway の built-in
-connector）を呼び出す。API キーは不要で、AWS の認証情報（ハンズオン環境では EC2 の IAM ロール）
+AWS が提供するマネージドな Web 検索（AgentCore Gateway の built-in connector）を
+呼び出す。API キーは不要で、AWS の認証情報（ハンズオン環境では EC2 の IAM ロール）
 で SigV4 署名して呼び出す。
 
 - Gateway の URL は環境変数 ``AGENTCORE_GATEWAY_URL`` から読む
