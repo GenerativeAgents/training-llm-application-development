@@ -4,7 +4,9 @@ from typing import Generator
 import weave
 from langchain.embeddings import init_embeddings
 from langchain_chroma import Chroma
+from langchain_core.documents import Document
 from langchain_core.language_models import BaseChatModel
+from langchain_core.runnables import RunnableLambda
 from pydantic import BaseModel
 
 from app.advanced_rag.chains.base import (
@@ -14,7 +16,18 @@ from app.advanced_rag.chains.base import (
     WeaveCallId,
     accumulator,
 )
-from app.tools.web_search import WebSearchRetriever
+from app.tools.web_search import web_search
+
+
+def _search_web(query: str) -> list[Document]:
+    """Web 検索の結果を LangChain の Document のリストに変換して返す。"""
+    return [
+        Document(
+            page_content=result.get("text", ""),
+            metadata={key: value for key, value in result.items() if key != "text"},
+        )
+        for result in web_search(query, max_results=5)
+    ]
 
 
 class Route(str, Enum):
@@ -60,7 +73,7 @@ class RouteRAGChain(BaseRAGChain):
         ).with_config({"run_name": "llm_safety_document_retriever"})
 
         # Web検索の準備
-        self.web_retriever = WebSearchRetriever(k=5).with_config(
+        self.web_retriever = RunnableLambda(_search_web).with_config(
             {"run_name": "web_retriever"}
         )
 

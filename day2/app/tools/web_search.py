@@ -1,4 +1,4 @@
-"""Amazon Bedrock AgentCore Gateway の Web Search Tool を LangChain から使うためのモジュール。
+"""Amazon Bedrock AgentCore Gateway の Web Search Tool を呼び出すモジュール。
 
 Tavily の代替として、AWS が提供するマネージドな Web 検索（AgentCore Gateway の built-in
 connector）を呼び出す。API キーは不要で、AWS の認証情報（ハンズオン環境では EC2 の IAM ロール）
@@ -9,12 +9,14 @@ connector）を呼び出す。API キーは不要で、AWS の認証情報（ハ
 - Gateway は MCP サーバーなので、``tools/call`` の JSON-RPC を HTTP POST する。
   MCP SDK は使わず ``requests`` で直接呼び出している。
 
+このモジュールは Web 検索の関数 ``web_search`` を提供するだけで、LangChain には依存しない。
+LangChain のツールや Retriever として使う場合は、呼び出し側でこの関数をラップする。
+
 使い方::
 
-    from app.tools.web_search import WebSearchTool, WebSearchRetriever
+    from app.tools.web_search import web_search
 
-    tools = [WebSearchTool(max_results=5)]          # エージェントのツールとして
-    retriever = WebSearchRetriever(k=5)             # RAG の Retriever として
+    results = web_search("東京の明日の天気", max_results=5)
 """
 
 import json
@@ -27,14 +29,6 @@ import boto3
 import requests
 from botocore.auth import SigV4Auth
 from botocore.awsrequest import AWSRequest
-from langchain_core.callbacks import (
-    CallbackManagerForRetrieverRun,
-    CallbackManagerForToolRun,
-)
-from langchain_core.documents import Document
-from langchain_core.retrievers import BaseRetriever
-from langchain_core.tools import BaseTool
-from pydantic import BaseModel, Field
 
 # Gateway を作成したリージョン（ハンズオン環境のインフラ側で固定）
 _aws_region = "ap-northeast-1"
@@ -165,46 +159,3 @@ def web_search(query: str, max_results: int = 5) -> list[dict[str, Any]]:
         return structured["results"]
     text = result["content"][0]["text"]
     return json.loads(text)["results"]
-
-
-class WebSearchInput(BaseModel):
-    query: str = Field(description="検索クエリ（200文字以内）")
-
-
-class WebSearchTool(BaseTool):
-    """エージェントのツールとして使う Web 検索。``TavilySearch`` の置き換え。"""
-
-    name: str = "web_search"
-    description: str = (
-        "最新の情報や知らないことを Web から検索します。"
-        "検索結果として、本文の抜粋・URL・タイトル・公開日のリストを返します。"
-    )
-    args_schema: type[BaseModel] = WebSearchInput
-    max_results: int = 5
-
-    def _run(
-        self,
-        query: str,
-        run_manager: CallbackManagerForToolRun | None = None,
-    ) -> list[dict[str, Any]]:
-        return web_search(query, max_results=self.max_results)
-
-
-class WebSearchRetriever(BaseRetriever):
-    """RAG の Retriever として使う Web 検索。``TavilySearchAPIRetriever`` の置き換え。"""
-
-    k: int = 5
-
-    def _get_relevant_documents(
-        self,
-        query: str,
-        *,
-        run_manager: CallbackManagerForRetrieverRun,
-    ) -> list[Document]:
-        return [
-            Document(
-                page_content=result.get("text", ""),
-                metadata={key: value for key, value in result.items() if key != "text"},
-            )
-            for result in web_search(query, max_results=self.k)
-        ]

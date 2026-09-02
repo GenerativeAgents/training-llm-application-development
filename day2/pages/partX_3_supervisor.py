@@ -1,4 +1,5 @@
 import os
+from typing import Any
 
 import streamlit as st
 import weave
@@ -11,7 +12,16 @@ from langchain_core.tools import tool
 from langgraph.config import get_stream_writer
 from langgraph.graph.state import CompiledStateGraph
 
-from app.tools.web_search import WebSearchTool
+from app.tools.web_search import web_search
+
+
+@tool
+def search_web(query: str) -> list[dict[str, Any]]:
+    """最新の情報や知らないことを Web から検索します。
+
+    検索結果として、本文の抜粋・URL・タイトル・公開日のリストを返します。
+    """
+    return web_search(query, max_results=5)
 
 
 def create_research_agent_tool(model_name: str, reasoning_effort: str) -> BaseTool:
@@ -22,7 +32,7 @@ def create_research_agent_tool(model_name: str, reasoning_effort: str) -> BaseTo
     )
     research_agent: CompiledStateGraph = create_agent(
         model=model,
-        tools=[WebSearchTool()],
+        tools=[search_web],
         system_prompt="あなたは優秀なリサーチエージェントです。",
     )
 
