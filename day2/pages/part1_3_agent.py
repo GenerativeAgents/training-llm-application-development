@@ -1,5 +1,3 @@
-from typing import Any
-
 import streamlit as st
 from dotenv import load_dotenv
 from langchain.agents import create_agent
@@ -10,11 +8,11 @@ from langchain_core.tools import tool
 from langgraph.graph.state import CompiledStateGraph
 from PIL import Image
 
-from app.tools.web_search import web_search
+from app.tools.web_search import WebSearchResult, web_search
 
 
 @tool
-def search_web(query: str) -> list[dict[str, Any]]:
+def search_web(query: str) -> list[WebSearchResult]:
     """最新の情報や知らないことを Web から検索します。
 
     検索結果として、本文の抜粋・URL・タイトル・公開日のリストを返します。

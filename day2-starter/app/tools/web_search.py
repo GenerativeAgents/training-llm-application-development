@@ -26,7 +26,7 @@ import os
 import random
 import re
 import time
-from typing import Any
+from typing import Any, NotRequired, TypedDict
 from urllib.parse import urlparse
 
 import boto3
@@ -44,6 +44,15 @@ _max_retries = 4
 
 _ENV_GATEWAY_URL = "AGENTCORE_GATEWAY_URL"
 _ENV_TOOL_NAME = "AGENTCORE_WEB_SEARCH_TOOL_NAME"
+
+
+class WebSearchResult(TypedDict):
+    """Web 検索の 1 件分の結果。キー名は Gateway のレスポンスのまま。"""
+
+    text: str  # 本文の抜粋
+    url: str
+    title: str
+    publishedDate: NotRequired[str]  # ISO 8601 形式。結果によっては含まれない
 
 
 def _gateway_url() -> str:
@@ -106,10 +115,8 @@ def _parse_response(response: requests.Response) -> dict[str, Any]:
     return response.json()
 
 
-def web_search(query: str, max_results: int = 5) -> list[dict[str, Any]]:
+def web_search(query: str, max_results: int = 5) -> list[WebSearchResult]:
     """Web 検索を実行し、検索結果のリストを返す。
-
-    各要素は ``text``（本文の抜粋）, ``url``, ``title``, ``publishedDate`` を持つ dict。
 
     Args:
         query: 検索クエリ（200 文字以内。超えた分は切り捨てる）
