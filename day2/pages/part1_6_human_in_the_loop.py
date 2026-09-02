@@ -5,7 +5,6 @@ import streamlit as st
 from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
 from langchain_community.tools import ShellTool
-from langchain_community.tools.tavily_search import TavilySearchResults
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.memory import MemorySaver
@@ -15,6 +14,8 @@ from langgraph.prebuilt import ToolNode
 from langgraph.types import Command, RunnableConfig, interrupt
 from pydantic import BaseModel
 from typing_extensions import TypedDict
+
+from app.tools.web_search import WebSearchTool
 
 
 class HumanReviewApprove(BaseModel):
@@ -36,7 +37,7 @@ class Agent:
             model_provider="openai",
             temperature=1,
         )
-        self.tools = [TavilySearchResults(), ShellTool()]
+        self.tools = [WebSearchTool(), ShellTool()]
 
         graph_builder = StateGraph(State)
 

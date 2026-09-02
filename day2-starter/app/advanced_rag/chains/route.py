@@ -4,7 +4,6 @@ from typing import Generator
 import weave
 from langchain.embeddings import init_embeddings
 from langchain_chroma import Chroma
-from langchain_community.retrievers import TavilySearchAPIRetriever
 from langchain_core.language_models import BaseChatModel
 from pydantic import BaseModel
 
@@ -15,6 +14,7 @@ from app.advanced_rag.chains.base import (
     WeaveCallId,
     accumulator,
 )
+from app.tools.web_search import WebSearchRetriever
 
 
 class Route(str, Enum):
@@ -60,7 +60,7 @@ class RouteRAGChain(BaseRAGChain):
         ).with_config({"run_name": "llm_safety_document_retriever"})
 
         # Web検索の準備
-        self.web_retriever = TavilySearchAPIRetriever(k=5).with_config(
+        self.web_retriever = WebSearchRetriever(k=5).with_config(
             {"run_name": "web_retriever"}
         )
 

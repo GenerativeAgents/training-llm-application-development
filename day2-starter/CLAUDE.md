@@ -60,4 +60,5 @@ Jupyter notebooks for interactive teaching. Executed as tests via `make test`.
 - **Streamlit** for web UI with `st.write_stream()` for streaming responses
 - **Chroma** vector store persisted at `./tmp/chroma`, using OpenAI `text-embedding-3-small` embeddings
 - **Weave** (Weights & Biases) for tracing and evaluation
-- Environment variables loaded from `.env` (see `.env.template`): `OPENAI_API_KEY`, `WANDB_API_KEY`, `COHERE_API_KEY`, `TAVILY_API_KEY`
+- Environment variables loaded from `.env` (see `.env.template`): `OPENAI_API_KEY`, `WANDB_API_KEY`, `WANDB_PROJECT`
+- **Web search** via Amazon Bedrock AgentCore Gateway Web Search Tool (`app/tools/web_search.py`): `WebSearchTool` (agent tool) and `WebSearchRetriever` (RAG retriever). Reads the gateway URL from `AGENTCORE_GATEWAY_URL` (set by the hands-on environment) and signs requests with AWS credentials (EC2 instance role); no API key needed

@@ -8,9 +8,10 @@ from langchain.chat_models import init_chat_model
 from langchain.tools import BaseTool
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
 from langchain_core.tools import tool
-from langchain_tavily import TavilySearch
 from langgraph.config import get_stream_writer
 from langgraph.graph.state import CompiledStateGraph
+
+from app.tools.web_search import WebSearchTool
 
 
 def create_research_agent_tool(model_name: str, reasoning_effort: str) -> BaseTool:
@@ -21,7 +22,7 @@ def create_research_agent_tool(model_name: str, reasoning_effort: str) -> BaseTo
     )
     research_agent: CompiledStateGraph = create_agent(
         model=model,
-        tools=[TavilySearch()],
+        tools=[WebSearchTool()],
         system_prompt="あなたは優秀なリサーチエージェントです。",
     )
 
