@@ -53,7 +53,7 @@ def context_recall(output: dict[str, Any], context: str) -> int:
     search_result_sources: list[str] = [
         f"{r.metadata['source']} (p.{r.metadata['page'] + 1})"
         if "page" in r.metadata
-        else r.metadata["source"]
+        else r.metadata["url"]
         for r in output_context
     ]
     ground_truch_source: str = context

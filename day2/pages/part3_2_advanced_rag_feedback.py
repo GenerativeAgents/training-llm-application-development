@@ -26,7 +26,7 @@ def show_context(context: Sequence[Document]) -> None:
         source = (
             f"{doc.metadata['source']} (p.{doc.metadata['page'] + 1})"
             if "page" in doc.metadata
-            else doc.metadata["source"]
+            else doc.metadata["url"]
         )
         content = doc.page_content
         with st.expander(source):
