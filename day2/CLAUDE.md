@@ -55,7 +55,7 @@ Jupyter notebooks for interactive teaching. Executed as tests via `make test`.
 
 ## Key Technical Details
 
-- **Python 3.11**, managed with **uv** (dependencies in `pyproject.toml`, lock in `uv.lock`)
+- **Python 3.13**, managed with **uv** (dependencies in `pyproject.toml`, lock in `uv.lock`)
 - **LangChain** + **LangGraph** for chains and agent orchestration
 - **Streamlit** for web UI with `st.write_stream()` for streaming responses
 - **Chroma** vector store persisted at `./tmp/chroma`, using OpenAI `text-embedding-3-small` embeddings

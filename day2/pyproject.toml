@@ -3,7 +3,7 @@ name = "training-llm-application-development"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 dependencies = [
     "decorator==5.3.1",
     "deepagents-cli==0.3.0",
@@ -18,7 +18,7 @@ dependencies = [
     "langgraph-checkpoint-sqlite==3.1.1",
     "langgraph==1.2.11",
     "nltk==3.10.3",
-    "numpy==2.4.6",
+    "numpy==2.5.3",
     "openai==3.8.0",
     "pydantic-settings==2.15.0",
     "python-dotenv==1.2.3",
