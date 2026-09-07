@@ -10,9 +10,7 @@ from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.graph.state import CompiledStateGraph
 
 
-async def create_agent_with_tools(
-    model_name: str, reasoning_effort: str
-) -> CompiledStateGraph:
+async def create_agent_with_tools(model_name: str) -> CompiledStateGraph:
     client = MultiServerMCPClient(
         {
             "random-number": {
@@ -34,7 +32,8 @@ async def create_agent_with_tools(
     model = init_chat_model(
         model=model_name,
         model_provider="openai",
-        reasoning_effort=reasoning_effort,
+        # Chat Completions API で Function tools を使う場合、reasoning_effort は "none" のみ対応
+        reasoning_effort="none",
     )
     return create_agent(model=model, tools=tools)
 
@@ -73,20 +72,13 @@ async def app() -> None:
     with st.sidebar:
         model_name = st.selectbox(
             label="model_name",
-            options=["gpt-5-nano", "gpt-5-mini", "gpt-5"],
-            index=1,
-        )
-        reasoning_effort = st.selectbox(
-            label="reasoning_effort",
-            options=["minimal", "low", "medium", "high"],
-            index=2,
+            options=["gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol"],
+            index=0,
         )
 
     # エージェントを初期化
     if "agent_with_mcp_tools" not in st.session_state:
-        st.session_state.agent_with_mcp_tools = await create_agent_with_tools(
-            model_name=model_name, reasoning_effort=reasoning_effort
-        )
+        st.session_state.agent_with_mcp_tools = await create_agent_with_tools(model_name=model_name)
     agent = st.session_state.agent_with_mcp_tools
 
     # 会話履歴を初期化

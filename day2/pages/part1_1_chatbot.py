@@ -14,9 +14,9 @@ from langchain_core.messages import (
 
 def stream_llm(messages: list[BaseMessage]) -> Iterator[BaseMessageChunk]:
     model = init_chat_model(
-        model="gpt-5-nano",
+        model="gpt-5.6-luna",
         model_provider="openai",
-        reasoning_effort="minimal",
+        reasoning_effort="none",
     )
 
     all_messages = [SystemMessage(content="You are a helpful assistant.")] + messages

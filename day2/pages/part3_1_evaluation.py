@@ -123,7 +123,7 @@ _answer_hallucination_prompt = """
 @weave.op
 def answer_hallucination(output: dict[str, Any], question: str, answer: str) -> int:
     model = init_chat_model(
-        model="gpt-5.4-nano",
+        model="gpt-5.6-luna",
         model_provider="openai",
         reasoning_effort="none",
     )
@@ -175,7 +175,7 @@ def app() -> None:
 
         # 推論の準備
         model = init_chat_model(
-            model="gpt-5.4-nano",
+            model="gpt-5.6-luna",
             model_provider="openai",
             reasoning_effort=reasoning_effort,
         )

@@ -26,9 +26,9 @@ class State(TypedDict):
 
 
 model = init_chat_model(
-    model="gpt-5-mini",
+    model="gpt-5.6-luna",
     model_provider="openai",
-    reasoning_effort="medium",
+    reasoning_effort="none",
 )
 
 

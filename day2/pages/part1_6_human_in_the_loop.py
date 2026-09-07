@@ -43,9 +43,9 @@ class State(TypedDict):
 class Agent:
     def __init__(self, checkpointer: BaseCheckpointSaver) -> None:
         self.llm = init_chat_model(
-            model="gpt-4.1-nano",
+            model="gpt-5.6-luna",
             model_provider="openai",
-            temperature=1,
+            reasoning_effort="none",
         )
         self.tools = [search_web, ShellTool()]
 

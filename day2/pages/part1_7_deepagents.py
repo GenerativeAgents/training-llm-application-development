@@ -31,9 +31,9 @@ AgentStreamChunk = AIMessage | ToolMessage | ActionRequests
 class MyAgent:
     def __init__(self) -> None:
         model = init_chat_model(
-            model="gpt-5",
+            model="gpt-5.6-luna",
             model_provider="openai",
-            reasoning_effort="medium",
+            reasoning_effort="none",
         )
         self.agent = create_deep_agent(
             model=model,
@@ -42,6 +42,8 @@ class MyAgent:
             interrupt_on={
                 "write_file": {"allowed_decisions": ["approve", "edit", "reject"]},
                 "edit_file": {"allowed_decisions": ["approve", "edit", "reject"]},
+                # deepagents 0.7 から再帰削除の delete ツールが既定で使えるようになったため、承認対象に加える
+                "delete": {"allowed_decisions": ["approve", "reject"]},
             },
         )
 

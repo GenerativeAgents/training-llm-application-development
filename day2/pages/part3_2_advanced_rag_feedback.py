@@ -67,7 +67,7 @@ def app() -> None:
     if question != st.session_state.state.question:
         # 回答を生成して表示
         model = init_chat_model(
-            model="gpt-5.4-nano",
+            model="gpt-5.6-luna",
             model_provider="openai",
             reasoning_effort=reasoning_effort,
         )

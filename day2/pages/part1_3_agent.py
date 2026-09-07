@@ -34,9 +34,7 @@ system_prompt = """
 """
 
 
-def create_agent_with_tools(
-    model_name: str, reasoning_effort: str
-) -> CompiledStateGraph:
+def create_agent_with_tools(model_name: str) -> CompiledStateGraph:
     tools = [
         search_web,
         # 注意:
@@ -50,7 +48,8 @@ def create_agent_with_tools(
     model = init_chat_model(
         model=model_name,
         model_provider="openai",
-        reasoning_effort=reasoning_effort,
+        # Chat Completions API で Function tools を使う場合、reasoning_effort は "none" のみ対応
+        reasoning_effort="none",
     )
     return create_agent(model=model, tools=tools, system_prompt=system_prompt)
 
@@ -89,13 +88,8 @@ def app() -> None:
     with st.sidebar:
         model_name = st.selectbox(
             label="model_name",
-            options=["gpt-5-nano", "gpt-5-mini", "gpt-5"],
-            index=1,
-        )
-        reasoning_effort = st.selectbox(
-            label="reasoning_effort",
-            options=["minimal", "low", "medium", "high"],
-            index=2,
+            options=["gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol"],
+            index=0,
         )
 
     # 電灯の状態を初期化
@@ -124,9 +118,7 @@ def app() -> None:
         messages.append(HumanMessage(content=human_message))
 
         # 応答を生成
-        agent = create_agent_with_tools(
-            model_name=model_name, reasoning_effort=reasoning_effort
-        )
+        agent = create_agent_with_tools(model_name=model_name)
 
         # 新しいメッセージのみを追跡
         new_messages = []
