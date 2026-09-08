@@ -1,12 +1,10 @@
 import json
-from collections.abc import Callable
-from typing import Any
 
 import streamlit as st
 from dotenv import load_dotenv
 from PIL import Image
 
-from app.agent_loop import Message, agent_loop
+from app.agent_loop import Message, Tool, agent_loop, function_to_tool
 from app.coding_agent import run_command
 from app.tools.web_search import web_search
 
@@ -14,75 +12,30 @@ from app.tools.web_search import web_search
 
 
 def search_web(query: str) -> str:
-    """最新の情報や知らないことを Web から検索する"""
+    """最新の情報や知らないことを Web から検索し、本文の抜粋・URL・タイトル・公開日のリストを返す"""
     results = web_search(query, max_results=5)
     return json.dumps(results, ensure_ascii=False)
 
 
 def turn_light(on: bool) -> str:
-    """部屋の電気を ON/OFF する"""
+    """部屋の電気を ON/OFF する（True で ON、False で OFF）"""
     if on:
         return "LIGHT_ON"
     else:
         return "LIGHT_OFF"
 
 
-# ---------- ツールの定義（Chat Completions API に渡す tools） ----------
+# ---------- LLM に渡すツール（定義は関数の型ヒントと docstring から作られる） ----------
 
-tools: list[dict[str, Any]] = [
-    {
-        "type": "function",
-        "function": {
-            "name": "search_web",
-            "description": "最新の情報や知らないことを Web から検索します。検索結果として、本文の抜粋・URL・タイトル・公開日のリストを返します。",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "query": {"type": "string", "description": "検索クエリ"},
-                },
-                "required": ["query"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            # 注意:
-            # 講座ではAIエージェントにできることを分かりやすく理解するためにコマンド実行ツールを使用します。
-            # しかし、コマンド実行ツールでは予期しないコマンドを実行される可能性があります。
-            # 実際に使用を検討する際は、AIエージェントが動作する環境などに十分な注意が必要です。
-            "name": "run_command",
-            "description": "作業ディレクトリでシェルコマンドを実行します。標準出力・標準エラー出力・終了コードをJSONで返します。",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "command": {"type": "string", "description": "実行するシェルコマンド"},
-                },
-                "required": ["command"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "turn_light",
-            "description": "部屋の電気をON/OFFするツールです",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "on": {"type": "boolean", "description": "trueでON、falseでOFF"},
-                },
-                "required": ["on"],
-            },
-        },
-    },
+# 注意:
+# 講座ではAIエージェントにできることを分かりやすく理解するためにコマンド実行ツールを使用します。
+# しかし、コマンド実行ツールでは予期しないコマンドを実行される可能性があります。
+# 実際に使用を検討する際は、AIエージェントが動作する環境などに十分な注意が必要です。
+tools: list[Tool] = [
+    function_to_tool(search_web),
+    function_to_tool(run_command),
+    function_to_tool(turn_light),
 ]
-
-available_functions: dict[str, Callable[..., str]] = {
-    "search_web": search_web,
-    "run_command": run_command,
-    "turn_light": turn_light,
-}
 
 system_prompt = """
 ファイルの作成を依頼された場合、run_commandでechoコマンドを使用してください。
@@ -145,7 +98,7 @@ def app() -> None:
 
         # エージェントループを回し、届いたメッセージを順に表示する
         all_messages = [{"role": "developer", "content": system_prompt}, *messages]
-        for message in agent_loop(all_messages, tools, available_functions):
+        for message in agent_loop(all_messages, tools):
             show_message(message)
             messages.append(message)
 

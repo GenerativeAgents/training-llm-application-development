@@ -5,19 +5,47 @@ part1_2 のノートブックで実装した agent_loop と同じ構造で、表
 CLI（app/coding_agent.py）では print し、Streamlit（pages/part1_3_agent.py）では画面に描く。
 """
 
+import inspect
 import json
 from collections.abc import Callable, Iterator
+from dataclasses import dataclass
 from typing import Any
 
 from openai import OpenAI
+from pydantic import create_model
 
 Message = dict[str, Any]
 
 
+@dataclass
+class Tool:
+    """Chat Completions API に渡す定義と、実際に呼び出す関数の組"""
+
+    definition: dict[str, Any]
+    function: Callable[..., str]
+
+
+def function_to_tool(func: Callable[..., str]) -> Tool:
+    """関数の型ヒントと docstring から、Chat Completions API に渡す tool の定義を作る"""
+    fields: dict[str, Any] = {}
+    for name, param in inspect.signature(func).parameters.items():
+        default = ... if param.default is inspect.Parameter.empty else param.default
+        fields[name] = (param.annotation, default)
+    parameters = create_model(func.__name__, **fields).model_json_schema()
+    definition = {
+        "type": "function",
+        "function": {
+            "name": func.__name__,
+            "description": inspect.getdoc(func) or "",
+            "parameters": parameters,
+        },
+    }
+    return Tool(definition=definition, function=func)
+
+
 def agent_loop(
     messages: list[Message],
-    tools: list[dict[str, Any]],
-    available_functions: dict[str, Callable[..., str]],
+    tools: list[Tool],
     *,
     model: str = "gpt-5.6-luna",
     max_iterations: int = 20,
@@ -27,12 +55,13 @@ def agent_loop(
     messages は呼び出し側のリストをそのまま更新する（会話履歴として使い回せる）。
     """
     client = OpenAI()
+    available_functions = {tool.definition["function"]["name"]: tool.function for tool in tools}
 
     for _ in range(max_iterations):
         response = client.chat.completions.create(  # type: ignore[call-overload]
             model=model,
             messages=messages,
-            tools=tools,
+            tools=[tool.definition for tool in tools],
             # Chat Completions API で Function tools を使う場合、reasoning_effort は "none" のみ対応
             reasoning_effort="none",
         )

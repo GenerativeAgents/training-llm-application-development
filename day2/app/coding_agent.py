@@ -12,13 +12,11 @@ app/agent_loop.py のエージェントループで動かす。
 import argparse
 import json
 import subprocess
-from collections.abc import Callable
 from pathlib import Path
-from typing import Any
 
 from dotenv import load_dotenv
 
-from app.agent_loop import Message, agent_loop
+from app.agent_loop import Message, Tool, agent_loop, function_to_tool
 
 # エージェントが触れる範囲を限定するための作業ディレクトリ
 WORK_DIR = Path("tmp/coding-agent").resolve()
@@ -28,7 +26,7 @@ WORK_DIR = Path("tmp/coding-agent").resolve()
 
 
 def run_command(command: str) -> str:
-    """作業ディレクトリでシェルコマンドを実行し、標準出力・標準エラー出力・終了コードを返す"""
+    """作業ディレクトリでシェルコマンドを実行し、標準出力・標準エラー出力・終了コードをJSONで返す"""
     result = subprocess.run(
         command,
         shell=True,
@@ -56,71 +54,25 @@ def _resolve_path(path: str) -> Path:
 
 
 def read_file(path: str) -> str:
-    """ファイルの内容を読んで返す"""
+    """作業ディレクトリからの相対パスで指定したファイルの内容を読んで返す"""
     return _resolve_path(path).read_text(encoding="utf-8")
 
 
 def write_file(path: str, content: str) -> str:
-    """ファイルに内容を書き込む（存在すれば上書き）"""
+    """作業ディレクトリからの相対パスで指定したファイルに内容を書き込む（存在すれば上書き）"""
     target = _resolve_path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(content, encoding="utf-8")
     return f"{path} に {len(content)} 文字を書き込みました"
 
 
-# ---------- ツールの定義（Chat Completions API に渡す tools） ----------
+# ---------- LLM に渡すツール（定義は関数の型ヒントと docstring から作られる） ----------
 
-TOOLS: list[dict[str, Any]] = [
-    {
-        "type": "function",
-        "function": {
-            "name": "run_command",
-            "description": "作業ディレクトリでシェルコマンドを実行します。標準出力・標準エラー出力・終了コードをJSONで返します。",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "command": {"type": "string", "description": "実行するシェルコマンド"},
-                },
-                "required": ["command"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "read_file",
-            "description": "作業ディレクトリ内のファイルの内容を読みます。",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "path": {"type": "string", "description": "作業ディレクトリからの相対パス"},
-                },
-                "required": ["path"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "write_file",
-            "description": "作業ディレクトリ内のファイルに内容を書き込みます。存在すれば上書きします。",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "path": {"type": "string", "description": "作業ディレクトリからの相対パス"},
-                    "content": {"type": "string", "description": "書き込む内容"},
-                },
-                "required": ["path", "content"],
-            },
-        },
-    },
+TOOLS: list[Tool] = [
+    function_to_tool(run_command),
+    function_to_tool(read_file),
+    function_to_tool(write_file),
 ]
-
-AVAILABLE_FUNCTIONS: dict[str, Callable[..., str]] = {
-    "run_command": run_command,
-    "read_file": read_file,
-    "write_file": write_file,
-}
 
 SYSTEM_PROMPT = """あなたはコーディングエージェントです。
 作業ディレクトリの中でファイルの作成・編集やコマンドの実行を行い、ユーザーの依頼を達成してください。
@@ -175,7 +127,7 @@ def main() -> None:
             continue
 
         messages.append({"role": "user", "content": user_input})
-        for message in agent_loop(messages, TOOLS, AVAILABLE_FUNCTIONS):
+        for message in agent_loop(messages, TOOLS):
             print_message(message)
 
 

@@ -42,7 +42,7 @@ Factory-pattern RAG system with pluggable retrieval strategies. All chains exten
 - `hybrid` - combined BM25 + semantic search
 
 ### Agent loop (`app/agent_loop.py`) and coding agent CLI (`app/coding_agent.py`)
-`agent_loop()` drives the Chat Completions API Function calling loop (same structure as the notebook version in `part1_2`, but yields each appended message so callers can display progress). `app/coding_agent.py` is a minimal coding agent CLI built on it with three tools (`run_command`, `read_file`, `write_file`) confined to `tmp/coding-agent`; run with `make coding-agent` or `uv run python -m app.coding_agent [--work-dir DIR]`.
+`agent_loop(messages, tools)` drives the Chat Completions API Function calling loop (same structure as the notebook version in `part1_2`, but yields each appended message so callers can display progress). `tools` is a list of `Tool` (API definition + callable); build each with `function_to_tool(func)`, which derives the JSON schema from the function's type hints and docstring (via Pydantic `create_model`), so there is no hand-written schema or name-to-function dict. `app/coding_agent.py` is a minimal coding agent CLI built on it with three tools (`run_command`, `read_file`, `write_file`) confined to `tmp/coding-agent`; run with `make coding-agent` or `uv run python -m app.coding_agent [--work-dir DIR]`.
 
 ### MCP Server (`app/random_number_mcp.py`)
 Example MCP (Model Context Protocol) server shown in the slides; used by the parked Streamlit MCP pages.
