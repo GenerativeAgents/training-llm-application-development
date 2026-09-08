@@ -56,6 +56,8 @@ Progressive examples organized by course part. Each file is a standalone Streaml
 
 The main entry point is `app.py` (simple chatbot).
 
+`st.session_state` is shared across pages, so every page that keeps state calls `reset_session_state_on_page_change(__file__)` (from `app/session_state.py`) as the first line of `app()`; it clears the state when the page differs from the previous run. This lets all pages use the same keys (e.g. `st.session_state.messages`) even though part1_1 stores LangChain messages and part1_3 stores OpenAI dicts. Add the same line to any new page that uses `st.session_state`.
+
 ### Notebooks (`notebooks/`)
 Jupyter notebooks for interactive teaching. Executed as tests via `make test`.
 - `part1_1_llm_api_basics` - Chat Completions API, Vision, reasoning_effort, LangChain Model

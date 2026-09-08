@@ -11,6 +11,8 @@ from langchain_core.messages import (
     SystemMessage,
 )
 
+from app.session_state import reset_session_state_on_page_change
+
 
 def stream_llm(messages: list[BaseMessage]) -> Iterator[BaseMessageChunk]:
     model = init_chat_model(
@@ -24,6 +26,7 @@ def stream_llm(messages: list[BaseMessage]) -> Iterator[BaseMessageChunk]:
 
 
 def app() -> None:
+    reset_session_state_on_page_change(__file__)
     load_dotenv(override=True)
 
     st.title("チャットボット")

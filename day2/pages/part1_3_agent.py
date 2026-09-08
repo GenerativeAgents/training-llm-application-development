@@ -6,6 +6,7 @@ from PIL import Image
 
 from app.agent_loop import Message, Tool, agent_loop, function_to_tool
 from app.coding_agent import run_command
+from app.session_state import reset_session_state_on_page_change
 from app.tools.web_search import web_search
 
 # ---------- ツールの実装 ----------
@@ -69,6 +70,7 @@ def show_message(message: Message) -> None:
 
 
 def app() -> None:
+    reset_session_state_on_page_change(__file__)
     load_dotenv(override=True)
 
     st.title("Naive Agent")

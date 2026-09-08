@@ -8,9 +8,10 @@
 data
 
 # --- これらは day2 の中身を入れず、指定したファイル/ディレクトリだけを starter に入れる ---
-# app は random_number_mcp.py と coding_agent.py を含めず、__init__.py・agent_loop.py・advanced_rag・tools だけ配置する
+# app は random_number_mcp.py と coding_agent.py を含めず、__init__.py・agent_loop.py・session_state.py・advanced_rag・tools だけ配置する
 app/__init__.py
 app/agent_loop.py
+app/session_state.py
 app/advanced_rag
 app/tools
 pages/.gitkeep

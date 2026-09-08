@@ -8,6 +8,7 @@ from langchain_core.tools import tool
 from langgraph.graph.state import CompiledStateGraph
 from PIL import Image
 
+from app.session_state import reset_session_state_on_page_change
 from app.tools.web_search import WebSearchResult, web_search
 
 
@@ -81,6 +82,7 @@ def show_message(message: BaseMessage) -> None:
 
 
 def app() -> None:
+    reset_session_state_on_page_change(__file__)
     load_dotenv(override=True)
 
     st.title("Naive Agent")

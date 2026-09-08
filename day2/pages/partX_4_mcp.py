@@ -9,6 +9,8 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMe
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.graph.state import CompiledStateGraph
 
+from app.session_state import reset_session_state_on_page_change
+
 system_prompt = """
 GitHubで管理されているOSSについて質問された場合はask_questionツールを使用して回答してください。
 """
@@ -73,6 +75,7 @@ def show_message(message: BaseMessage) -> None:
 
 
 async def app() -> None:
+    reset_session_state_on_page_change(__file__)
     load_dotenv(override=True)
 
     st.title("MCP")

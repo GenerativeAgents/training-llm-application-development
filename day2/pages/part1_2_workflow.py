@@ -12,6 +12,8 @@ from langgraph.graph.state import CompiledStateGraph
 from pydantic import BaseModel, Field
 from typing_extensions import TypedDict
 
+from app.session_state import reset_session_state_on_page_change
+
 load_dotenv(override=True)
 
 
@@ -77,6 +79,7 @@ def create_graph() -> CompiledStateGraph:
 
 
 def app() -> None:
+    reset_session_state_on_page_change(__file__)
 
     st.title("お問い合わせ返信文生成")
 
