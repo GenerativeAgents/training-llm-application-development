@@ -14,6 +14,9 @@ uv sync
 
 # Run Streamlit web app (port 8080)
 make streamlit
+
+# Run the coding agent CLI
+make coding-agent
 # or: uv run streamlit run app.py --server.port 8080
 
 # Run Jupyter notebooks
@@ -38,15 +41,18 @@ Factory-pattern RAG system with pluggable retrieval strategies. All chains exten
 - `route` - dynamic routing between retrievers
 - `hybrid` - combined BM25 + semantic search
 
+### Agent loop (`app/agent_loop.py`) and coding agent CLI (`app/coding_agent.py`)
+`agent_loop()` drives the Chat Completions API Function calling loop (same structure as the notebook version in `part1_2`, but yields each appended message so callers can display progress). `app/coding_agent.py` is a minimal coding agent CLI built on it with three tools (`run_command`, `read_file`, `write_file`) confined to `tmp/coding-agent`; run with `make coding-agent` or `uv run python -m app.coding_agent [--work-dir DIR]`.
+
 ### MCP Server (`app/random_number_mcp.py`)
-Example MCP (Model Context Protocol) server used by the MCP notebook (`notebooks/part1_4_mcp.ipynb`) and the parked Streamlit MCP pages.
+Example MCP (Model Context Protocol) server shown in the slides; used by the parked Streamlit MCP pages.
 
 ### Streamlit Pages (`pages/`)
 Progressive examples organized by course part. Each file is a standalone Streamlit page:
-- **part1** - Chatbot (`part1_1`), workflow (`part1_2`), agent with tools (`part1_3`)
+- **part1** - Chatbot (`part1_1`), workflow (`part1_2`), agent with tools on `app.agent_loop` (`part1_3`: web search, `run_command`, light switch)
 - **part2** - Advanced RAG
 - **part3** - Dataset creation, evaluation, advanced RAG with feedback
-- **partX** - Not used in the current course flow, kept as references: human-in-the-loop (`partX_1`), DeepAgents (`partX_2`), supervisor (`partX_3`), MCP via LangChain (`partX_4`, `partX_5`)
+- **partX** - Not used in the current course flow, kept as references: human-in-the-loop (`partX_1`), DeepAgents (`partX_2`), supervisor (`partX_3`), MCP via LangChain (`partX_4`, `partX_5`), the `create_agent` version of the agent page (`partX_6`)
 
 The main entry point is `app.py` (simple chatbot).
 
@@ -54,8 +60,6 @@ The main entry point is `app.py` (simple chatbot).
 Jupyter notebooks for interactive teaching. Executed as tests via `make test`.
 - `part1_1_llm_api_basics` - Chat Completions API, Vision, reasoning_effort, LangChain Model
 - `part1_2_workflow_and_agent` - Structured outputs, LangGraph workflow, Function calling, agent loop, `create_agent`
-- `part1_3_coding_agent` - Minimal coding agent (run_command / read_file / write_file + agent loop), working dir `tmp/coding-agent`
-- `part1_4_mcp` - MCP servers (DeepWiki, Serena, custom) called from an async agent loop with the `mcp` SDK, no LangChain
 - `part2_1_rag_basics` - RAG basics with Chroma and Weave
 - `partX_1_langgraph_basics` - LangGraph basics (parked, not in the current course flow)
 
