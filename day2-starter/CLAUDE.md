@@ -39,19 +39,27 @@ Factory-pattern RAG system with pluggable retrieval strategies. All chains exten
 - `hybrid` - combined BM25 + semantic search
 
 ### MCP Server (`app/random_number_mcp.py`)
-Example MCP (Model Context Protocol) server used by the Streamlit MCP pages.
+Example MCP (Model Context Protocol) server used by the MCP notebook (`notebooks/part1_4_mcp.ipynb`) and the parked Streamlit MCP pages.
 
 ### Streamlit Pages (`pages/`)
 Progressive examples organized by course part. Each file is a standalone Streamlit page:
-- **part1** - Chatbot, workflow, agent, MCP, checkpointer, human-in-the-loop, DeepAgents
-- **part2** - Indexing, RAG, advanced RAG
+- **part1** - Chatbot (`part1_1`), workflow (`part1_2`), agent with tools (`part1_3`)
+- **part2** - Advanced RAG
 - **part3** - Dataset creation, evaluation, advanced RAG with feedback
-- **partX** - Supervisor agent pattern
+- **partX** - Not used in the current course flow, kept as references: human-in-the-loop (`partX_1`), DeepAgents (`partX_2`), supervisor (`partX_3`), MCP via LangChain (`partX_4`, `partX_5`)
 
 The main entry point is `app.py` (simple chatbot).
 
 ### Notebooks (`notebooks/`)
 Jupyter notebooks for interactive teaching. Executed as tests via `make test`.
+- `part1_1_llm_api_basics` - Chat Completions API, Vision, reasoning_effort, LangChain Model
+- `part1_2_workflow_and_agent` - Structured outputs, LangGraph workflow, Function calling, agent loop, `create_agent`
+- `part1_3_coding_agent` - Minimal coding agent (run_command / read_file / write_file + agent loop), working dir `tmp/coding-agent`
+- `part1_4_mcp` - MCP servers (DeepWiki, Serena, custom) called from an async agent loop with the `mcp` SDK, no LangChain
+- `part2_1_rag_basics` - RAG basics with Chroma and Weave
+- `partX_1_langgraph_basics` - LangGraph basics (parked, not in the current course flow)
+
+Notes on models: all code uses `gpt-5.6-luna`. With the Chat Completions API, GPT-5.6 / GPT-6 accept function tools only with `reasoning_effort="none"`.
 
 ## Key Technical Details
 
