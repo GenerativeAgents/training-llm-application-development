@@ -14,6 +14,9 @@ uv sync
 
 # Run Streamlit web app (port 8080)
 make streamlit
+
+# Run the coding agent CLI
+make coding-agent
 # or: uv run streamlit run app.py --server.port 8080
 
 # Run Jupyter notebooks
@@ -38,24 +41,35 @@ Factory-pattern RAG system with pluggable retrieval strategies. All chains exten
 - `route` - dynamic routing between retrievers
 - `hybrid` - combined BM25 + semantic search
 
+### Agent loop (`app/agent_loop.py`) and coding agent CLI (`app/coding_agent.py`)
+`agent_loop(messages, tools)` drives the Chat Completions API Function calling loop (same structure as the notebook version in `part1_2`, but yields each appended message so callers can display progress). `tools` is a list of `Tool` (API definition + callable); build each with `function_to_tool(func)`, which derives the JSON schema from the function's type hints and docstring (via Pydantic `create_model`), so there is no hand-written schema or name-to-function dict. `app/coding_agent.py` is a minimal coding agent CLI built on it with three tools (`run_command`, `read_file`, `write_file`) confined to `tmp/coding-agent`; run with `make coding-agent` or `uv run python -m app.coding_agent [--work-dir DIR]`.
+
 ### MCP Server (`app/random_number_mcp.py`)
-Example MCP (Model Context Protocol) server used by the Streamlit MCP pages.
+Example MCP (Model Context Protocol) server shown in the slides; used by the parked Streamlit MCP pages.
 
 ### Streamlit Pages (`pages/`)
 Progressive examples organized by course part. Each file is a standalone Streamlit page:
-- **part1** - Chatbot, workflow, agent, MCP, checkpointer, human-in-the-loop, DeepAgents
-- **part2** - Indexing, RAG, advanced RAG
+- **part1** - Chatbot (`part1_1`), workflow (`part1_2`), agent with tools on `app.agent_loop` (`part1_3`: web search, `run_command`, light switch)
+- **part2** - Advanced RAG
 - **part3** - Dataset creation, evaluation, advanced RAG with feedback
-- **partX** - Supervisor agent pattern
+- **partX** - Not used in the current course flow, kept as references: human-in-the-loop (`partX_1`), DeepAgents (`partX_2`), supervisor (`partX_3`), MCP via LangChain (`partX_4`, `partX_5`), the `create_agent` version of the agent page (`partX_6`)
 
 The main entry point is `app.py` (simple chatbot).
 
+`st.session_state` is shared across pages, so every page that keeps state calls `reset_session_state_on_page_change(__file__)` (from `app/session_state.py`) as the first line of `app()`; it clears the state when the page differs from the previous run. This lets all pages use the same keys (e.g. `st.session_state.messages`) even though part1_1 stores LangChain messages and part1_3 stores OpenAI dicts. Add the same line to any new page that uses `st.session_state`.
+
 ### Notebooks (`notebooks/`)
 Jupyter notebooks for interactive teaching. Executed as tests via `make test`.
+- `part1_1_llm_api_basics` - Chat Completions API, Vision, reasoning_effort, LangChain Model
+- `part1_2_workflow_and_agent` - Structured outputs, LangGraph workflow, Function calling, agent loop, `create_agent`
+- `part2_1_rag_basics` - RAG basics with Chroma and Weave
+- `partX_1_langgraph_basics` - LangGraph basics (parked, not in the current course flow)
+
+Notes on models: all code uses `gpt-5.6-luna`. With the Chat Completions API, GPT-5.6 / GPT-6 accept function tools only with `reasoning_effort="none"`.
 
 ## Key Technical Details
 
-- **Python 3.11**, managed with **uv** (dependencies in `pyproject.toml`, lock in `uv.lock`)
+- **Python 3.13**, managed with **uv** (dependencies in `pyproject.toml`, lock in `uv.lock`)
 - **LangChain** + **LangGraph** for chains and agent orchestration
 - **Streamlit** for web UI with `st.write_stream()` for streaming responses
 - **Chroma** vector store persisted at `./tmp/chroma`, using OpenAI `text-embedding-3-small` embeddings

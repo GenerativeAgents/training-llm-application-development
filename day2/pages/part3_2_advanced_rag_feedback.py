@@ -11,6 +11,7 @@ from streamlit_feedback import streamlit_feedback  # type: ignore[import-untyped
 
 from app.advanced_rag.chains.base import AnswerToken, Context, WeaveCallId
 from app.advanced_rag.factory import chain_constructor_by_name, create_rag_chain
+from app.session_state import reset_session_state_on_page_change
 
 
 class SessionState(BaseModel):
@@ -34,6 +35,7 @@ def show_context(context: Sequence[Document]) -> None:
 
 
 def app() -> None:
+    reset_session_state_on_page_change(__file__)
     load_dotenv(override=True)
     weave.init(os.environ["WANDB_PROJECT"])
 
@@ -67,7 +69,7 @@ def app() -> None:
     if question != st.session_state.state.question:
         # 回答を生成して表示
         model = init_chat_model(
-            model="gpt-5.4-nano",
+            model="gpt-5.6-luna",
             model_provider="openai",
             reasoning_effort=reasoning_effort,
         )

@@ -19,3 +19,7 @@ test:
 .PHONY: clean
 clean:
 	uv run jupyter nbconvert --inplace --clear-output $(IPYNBS)
+
+.PHONY: coding-agent
+coding-agent:
+	uv run python -m app.coding_agent

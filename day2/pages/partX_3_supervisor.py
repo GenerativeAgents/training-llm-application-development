@@ -23,11 +23,12 @@ def search_web(query: str) -> list[WebSearchResult]:
     return web_search(query, max_results=5)
 
 
-def create_research_agent_tool(model_name: str, reasoning_effort: str) -> BaseTool:
+def create_research_agent_tool(model_name: str) -> BaseTool:
     model = init_chat_model(
         model=model_name,
         model_provider="openai",
-        reasoning_effort=reasoning_effort,
+        # Chat Completions API で Function tools を使う場合、reasoning_effort は "none" のみ対応
+        reasoning_effort="none",
     )
     research_agent: CompiledStateGraph = create_agent(
         model=model,
@@ -67,17 +68,16 @@ supervisor_system_prompt = """
 """
 
 
-def create_supervisor_agent(
-    model_name: str, reasoning_effort: str
-) -> CompiledStateGraph:
+def create_supervisor_agent(model_name: str) -> CompiledStateGraph:
     model = init_chat_model(
         model=model_name,
         model_provider="openai",
-        reasoning_effort=reasoning_effort,
+        # Chat Completions API で Function tools を使う場合、reasoning_effort は "none" のみ対応
+        reasoning_effort="none",
     )
 
     tools = [
-        create_research_agent_tool(model_name, reasoning_effort),
+        create_research_agent_tool(model_name),
     ]
 
     return create_agent(
@@ -129,13 +129,8 @@ def app() -> None:
     with st.sidebar:
         model_name = st.selectbox(
             label="model_name",
-            options=["gpt-5-nano", "gpt-5-mini", "gpt-5"],
-            index=1,
-        )
-        reasoning_effort = st.selectbox(
-            label="reasoning_effort",
-            options=["minimal", "low", "medium", "high"],
-            index=2,
+            options=["gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol"],
+            index=0,
         )
 
     # 会話履歴を初期化
@@ -160,9 +155,7 @@ def app() -> None:
     messages.append(HumanMessage(content=human_message))
 
     # 応答を生成
-    agent = create_supervisor_agent(
-        model_name=model_name, reasoning_effort=reasoning_effort
-    )
+    agent = create_supervisor_agent(model_name=model_name)
 
     # 新しいメッセージのみを追跡
     for stream_mode, chunk in agent.stream(

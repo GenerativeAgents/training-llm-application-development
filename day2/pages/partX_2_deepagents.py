@@ -13,6 +13,8 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.types import Command
 from pydantic import BaseModel
 
+from app.session_state import reset_session_state_on_page_change
+
 
 class ActionRequest(BaseModel):
     """人間のアクションを求めるときに画面に渡す情報を表すモデル"""
@@ -31,9 +33,9 @@ AgentStreamChunk = AIMessage | ToolMessage | ActionRequests
 class MyAgent:
     def __init__(self) -> None:
         model = init_chat_model(
-            model="gpt-5",
+            model="gpt-5.6-luna",
             model_provider="openai",
-            reasoning_effort="medium",
+            reasoning_effort="none",
         )
         self.agent = create_deep_agent(
             model=model,
@@ -42,6 +44,7 @@ class MyAgent:
             interrupt_on={
                 "write_file": {"allowed_decisions": ["approve", "edit", "reject"]},
                 "edit_file": {"allowed_decisions": ["approve", "edit", "reject"]},
+                "delete": {"allowed_decisions": ["approve", "reject"]},
             },
         )
 
@@ -155,6 +158,7 @@ def handle_agent_stream_chunk(chunk: AgentStreamChunk, ui_state: UIState) -> Non
 
 
 def app() -> None:
+    reset_session_state_on_page_change(__file__)
     load_dotenv(override=True)
 
     # UIStateを初期化

@@ -79,9 +79,9 @@ LangChain の init_chat_model を使用する箇所は、以下のように変�
 
 ```python
 model = init_chat_model(
-    model="gpt-5-nano",
+    model="gpt-5.6-luna",
     model_provider="openai",
-    reasoning_effort="minimal",
+    reasoning_effort="none",
 )
 ```
 
@@ -89,10 +89,10 @@ model = init_chat_model(
 
 ```python
 model = init_chat_model(
-    model="gpt-5-nano",
+    model="gpt-5.6-luna",
     model_provider="azure_openai",
     api_version="2024-08-01-preview",
-    reasoning_effort="minimal",
+    reasoning_effort="none",
 )
 ```
 
