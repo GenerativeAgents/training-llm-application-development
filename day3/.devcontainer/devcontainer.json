@@ -7,10 +7,10 @@
   "workspaceFolder": "/workspaces/workspace",
   "features": {
     "ghcr.io/va-h/devcontainers-features/uv:1": {
-      "version": "0.9.8"
+      "version": "0.12.6"
     },
     "ghcr.io/devcontainers/features/node:1": {
-      "version": "24.14.1"
+      "version": "24.20.0"
     },
     "ghcr.io/devcontainers/features/github-cli:1": {},
     "ghcr.io/devcontainers/features/docker-in-docker:2": {}
