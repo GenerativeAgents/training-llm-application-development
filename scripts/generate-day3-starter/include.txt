@@ -21,6 +21,7 @@ skills-lock.json
 # --- llm-app/ ---
 llm-app/.env.example
 llm-app/.gitignore
+llm-app/.python-version
 llm-app/pyproject.toml
 llm-app/uv.lock
 llm-app/app
@@ -33,6 +34,7 @@ llm-app/evals/evaluators/__init__.py
 # --- web/ ---
 web/.env.example
 web/.gitignore
+web/.npmrc
 web/README.md
 web/components.json
 web/eslint.config.mjs
