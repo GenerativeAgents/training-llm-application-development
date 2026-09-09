@@ -28,6 +28,7 @@ export function useDraftEditor({
   } | null>(null);
 
   // selectedInquiry が変わったら編集フィールドを初期化
+  /* eslint-disable react-hooks/set-state-in-effect -- 表示対象の切り替えに合わせて編集中の値を差し替える */
   useEffect(
     () => {
       if (!selectedInquiry) {
@@ -51,6 +52,7 @@ export function useDraftEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- id と updated_at の変化のみで発火させる
     [selectedInquiry?.id, selectedInquiry?.updated_at],
   );
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   async function submitDraft(
     endpoint: "draft" | "send",
