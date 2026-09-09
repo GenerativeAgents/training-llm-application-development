@@ -70,6 +70,7 @@ export function useInquiries() {
   );
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 初回表示とフィルタ変更時に一覧を取得する
     fetchInquiries();
   }, [fetchInquiries]);
 
