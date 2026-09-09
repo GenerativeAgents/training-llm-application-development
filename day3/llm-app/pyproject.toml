@@ -3,30 +3,39 @@ name = "llm-app"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = "==3.13.*"
 dependencies = [
-    "fastapi>=0.135.2",
-    "langchain>=1.2.14",
-    "langchain-anthropic>=1.4.0",
-    "langchain-core>=1.2.23",
-    "langgraph>=1.1.4",
-    "openevals>=0.1.3",
-    "python-dotenv>=1.2.2",
-    "pyyaml>=6.0",
-    "uvicorn[standard]>=0.42.0",
-    "wandb>=0.27.0",
-    "weave>=0.52.41",
+    "fastapi==0.141.1",
+    "langchain==1.3.17",
+    "langchain-anthropic==1.6.1",
+    "langchain-core==1.6.0",
+    "langgraph==1.2.11",
+    "openevals==0.2.0",
+    "python-dotenv==1.2.3",
+    "pyyaml==6.0.3",
+    "uvicorn[standard]==0.52.4",
+    "wandb==0.28.2",
+    "weave==0.53.6",
 ]
 
 [dependency-groups]
 dev = [
-    "mypy>=1.20.0",
-    "ruff>=0.15.8",
-    "types-pyyaml>=6.0",
+    "mypy==2.3.1",
+    "ruff==0.16.4",
+    "types-pyyaml==6.0.12.20260815",
 ]
 
+[tool.uv]
+# サプライチェーン攻撃対策: 公開から2週間未満のバージョンを解決対象から除外する。
+# 相対指定のため uv.lock にはスパン(P2W)が記録され、基準時刻は解決実行時に
+# 「その時点の2週間前」として毎回計算される。ロックが最新なら再解決は走らないので、
+# 依存変更や uv lock --upgrade などで再解決したときにカットオフが更新される。
+exclude-newer = "2 weeks"
+# exclude-newer の相対指定に対応したバージョンを要求する
+required-version = ">=0.11"
+
 [tool.ruff]
-target-version = "py311"
+target-version = "py313"
 line-length = 88
 
 [tool.ruff.lint]
@@ -48,6 +57,7 @@ ignore = [
     "T201",    # print (used in eval CLI scripts)
     "PTH123",  # Path.open() preference
     "RET504",  # unnecessary assignment before return
+    "CPY001",  # copyright notice (stabilized in ruff 0.16)
 ]
 
 [tool.ruff.format]
