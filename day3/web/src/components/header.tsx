@@ -2,16 +2,16 @@ import Link from "next/link";
 
 export function Header() {
   return (
-    <header className="border-b bg-white">
+    <header className="border-b bg-background">
       <div className="flex h-14 items-center justify-between px-6">
         <Link href="/" className="font-bold text-lg">
           株式会社サンプルエージェント
         </Link>
         <nav className="flex gap-6 text-sm">
-          <Link href="/" className="text-gray-600 hover:text-gray-900">
+          <Link href="/" className="text-muted-foreground hover:text-foreground">
             トップ
           </Link>
-          <Link href="/admin" className="text-gray-600 hover:text-gray-900">
+          <Link href="/admin" className="text-muted-foreground hover:text-foreground">
             管理画面
           </Link>
         </nav>

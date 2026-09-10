@@ -86,6 +86,8 @@ classify_topic → [spam?] → END
 
 shadcn/ui components (in `web/src/components/ui/`) built on Radix UI primitives, styled with Tailwind CSS v4.
 
+Dark mode follows the OS setting (`prefers-color-scheme`) via the CSS variables in `web/src/app/globals.css`. Use theme tokens (`bg-background`, `bg-card`, `bg-muted`, `text-muted-foreground`, `text-destructive`, ...) instead of hard-coded palette classes such as `bg-white` or `text-gray-500`, so that both themes stay readable.
+
 ## Path Aliases
 
 TypeScript path alias `@/*` maps to `web/src/*` (configured in tsconfig.json).

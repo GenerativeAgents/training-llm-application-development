@@ -62,16 +62,16 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-muted/50">
       <HealthCheckModal />
 
       {/* ヒーローセクション */}
-      <section className="bg-white border-b">
+      <section className="bg-background border-b">
         <div className="mx-auto max-w-5xl px-4 py-20 text-center">
           <h1 className="text-4xl font-bold tracking-tight">
             株式会社サンプルエージェント
           </h1>
-          <p className="mt-4 text-lg text-gray-600">
+          <p className="mt-4 text-lg text-muted-foreground">
             AIの力で、ビジネスの可能性を広げる
           </p>
         </div>
@@ -86,7 +86,7 @@ export default function Home() {
               <CardTitle>AIエージェント開発支援</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-gray-600">
+              <p className="text-muted-foreground">
                 お客様の業務課題に合わせたAIエージェントの設計・開発を支援します。業務効率化から顧客対応まで、幅広い領域でAI活用をサポートします。
               </p>
             </CardContent>
@@ -96,7 +96,7 @@ export default function Home() {
               <CardTitle>AgentBoard</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-gray-600">
+              <p className="text-muted-foreground">
                 法人向けChatGPT型AIプラットフォーム。社内ナレッジとの連携やチーム利用に最適化された、セキュアなAI環境を提供します。
               </p>
             </CardContent>
@@ -105,23 +105,23 @@ export default function Home() {
       </section>
 
       {/* お問い合わせフォーム */}
-      <section className="bg-white border-t">
+      <section className="bg-background border-t">
         <div className="mx-auto max-w-2xl px-4 py-16">
           <h2 className="text-2xl font-bold text-center mb-4">お問い合わせ</h2>
-          <p className="text-gray-600 text-center mb-8">
+          <p className="text-muted-foreground text-center mb-8">
             サービスに関するご質問・ご相談はお気軽にどうぞ
           </p>
 
           {isSubmitted ? (
             <Card>
               <CardHeader>
-                <CardTitle className="text-green-600">送信完了</CardTitle>
+                <CardTitle className="text-green-600 dark:text-green-400">送信完了</CardTitle>
                 <CardDescription>
                   お問い合わせいただきありがとうございます
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <p className="text-gray-600 mb-4">
+                <p className="text-muted-foreground mb-4">
                   お問い合わせを受け付けました。担当者より順次ご連絡いたします。
                 </p>
                 <Button
@@ -160,7 +160,7 @@ export default function Home() {
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="customer_name">
-                        お名前 <span className="text-red-500">*</span>
+                        お名前 <span className="text-destructive">*</span>
                       </Label>
                       <Input
                         id="customer_name"
@@ -174,7 +174,7 @@ export default function Home() {
 
                     <div className="space-y-2">
                       <Label htmlFor="customer_email">
-                        メールアドレス <span className="text-red-500">*</span>
+                        メールアドレス <span className="text-destructive">*</span>
                       </Label>
                       <Input
                         id="customer_email"
@@ -201,7 +201,7 @@ export default function Home() {
 
                   <div className="space-y-2">
                     <Label htmlFor="content">
-                      お問い合わせ内容 <span className="text-red-500">*</span>
+                      お問い合わせ内容 <span className="text-destructive">*</span>
                     </Label>
                     <Textarea
                       id="content"
