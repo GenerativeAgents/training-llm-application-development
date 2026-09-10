@@ -23,26 +23,26 @@ export function QualityCheckCard({ inquiry }: { inquiry: Inquiry }) {
           <div className="grid grid-cols-2 gap-3 text-sm">
             {inquiry.classification_confidence != null && (
               <div>
-                <span className="text-gray-500">分類の確信度:</span>{" "}
+                <span className="text-muted-foreground">分類の確信度:</span>{" "}
                 <span>
                   {(inquiry.classification_confidence * 100).toFixed(0)}%
                 </span>
               </div>
             )}
             <div>
-              <span className="text-gray-500">丁寧さ:</span>{" "}
+              <span className="text-muted-foreground">丁寧さ:</span>{" "}
               <span
                 className={
                   inquiry.generated_draft.quality_scores.politeness === "NG"
-                    ? "text-red-600 font-medium"
-                    : "text-green-600 font-medium"
+                    ? "text-destructive font-medium"
+                    : "text-green-600 dark:text-green-400 font-medium"
                 }
               >
                 {inquiry.generated_draft.quality_scores.politeness}
               </span>
               {inquiry.generated_draft.quality_scores.politeness_reason && (
                 <p
-                  className={`text-xs mt-0.5 ${inquiry.generated_draft.quality_scores.politeness === "NG" ? "text-red-500" : "text-gray-500"}`}
+                  className={`text-xs mt-0.5 ${inquiry.generated_draft.quality_scores.politeness === "NG" ? "text-destructive" : "text-muted-foreground"}`}
                 >
                   {inquiry.generated_draft.quality_scores.politeness_reason}
                 </p>
@@ -53,7 +53,7 @@ export function QualityCheckCard({ inquiry }: { inquiry: Inquiry }) {
           <div className="text-sm space-y-2">
             <p>このお問い合わせはスパムと判定されました。対応不要です。</p>
             {inquiry.classification_confidence != null && (
-              <p className="text-gray-500">
+              <p className="text-muted-foreground">
                 分類の確信度:{" "}
                 {(inquiry.classification_confidence * 100).toFixed(0)}%
               </p>

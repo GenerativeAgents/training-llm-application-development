@@ -81,16 +81,16 @@ export default function AdminInquiriesPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-muted/50 flex items-center justify-center">
         <HealthCheckModal />
-        <p className="text-gray-500">読み込み中...</p>
+        <p className="text-muted-foreground">読み込み中...</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-muted/50 flex items-center justify-center p-4">
         <HealthCheckModal />
         <Alert variant="destructive">
           <AlertTitle>エラー</AlertTitle>
@@ -101,15 +101,15 @@ export default function AdminInquiriesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-muted/50">
       <HealthCheckModal />
-      <div className="border-b bg-white px-6 py-4">
+      <div className="border-b bg-background px-6 py-4">
         <h1 className="text-2xl font-bold">お問い合わせ管理</h1>
       </div>
 
       <div className="flex h-[calc(100vh-73px)]">
         {/* Left Panel - Inquiry List */}
-        <div className="w-1/2 border-r bg-white overflow-hidden flex flex-col">
+        <div className="w-1/2 border-r bg-background overflow-hidden flex flex-col">
           <div className="p-4 border-b">
             <div className="flex gap-4">
               <div className="space-y-1">
@@ -167,8 +167,8 @@ export default function AdminInquiriesPage() {
                   inquiries.map((inquiry) => (
                     <TableRow
                       key={inquiry.id}
-                      className={`cursor-pointer hover:bg-gray-50 ${
-                        selectedInquiry?.id === inquiry.id ? "bg-blue-50" : ""
+                      className={`cursor-pointer hover:bg-muted/50 ${
+                        selectedInquiry?.id === inquiry.id ? "bg-blue-50 dark:bg-blue-950" : ""
                       }`}
                       onClick={() => fetchInquiryDetail(inquiry.id)}
                     >
@@ -178,7 +178,7 @@ export default function AdminInquiriesPage() {
                             {inquiry.customer_name}
                           </div>
                           {inquiry.company_name && (
-                            <div className="text-sm text-gray-500">
+                            <div className="text-sm text-muted-foreground">
                               {inquiry.company_name}
                             </div>
                           )}
@@ -196,7 +196,7 @@ export default function AdminInquiriesPage() {
                           {statusLabels[inquiry.status]}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-sm text-gray-500">
+                      <TableCell className="text-sm text-muted-foreground">
                         {formatDate(inquiry.created_at)}
                       </TableCell>
                     </TableRow>
@@ -271,7 +271,7 @@ export default function AdminInquiriesPage() {
                 )}
             </div>
           ) : (
-            <div className="h-full flex items-center justify-center text-gray-500">
+            <div className="h-full flex items-center justify-center text-muted-foreground">
               左の一覧からお問い合わせを選択してください
             </div>
           )}

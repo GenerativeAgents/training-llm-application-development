@@ -20,22 +20,22 @@ export function InquiryContentCard({ inquiry }: { inquiry: Inquiry }) {
       <CardContent className="space-y-4">
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
-            <span className="text-gray-500">お名前:</span>{" "}
+            <span className="text-muted-foreground">お名前:</span>{" "}
             {inquiry.customer_name}
           </div>
           <div>
-            <span className="text-gray-500">メール:</span>{" "}
+            <span className="text-muted-foreground">メール:</span>{" "}
             {inquiry.customer_email}
           </div>
           {inquiry.company_name && (
             <div className="col-span-2">
-              <span className="text-gray-500">会社名:</span>{" "}
+              <span className="text-muted-foreground">会社名:</span>{" "}
               {inquiry.company_name}
             </div>
           )}
         </div>
         <div>
-          <span className="text-gray-500 text-sm">内容:</span>
+          <span className="text-muted-foreground text-sm">内容:</span>
           <p className="whitespace-pre-wrap mt-1">{inquiry.content}</p>
         </div>
       </CardContent>

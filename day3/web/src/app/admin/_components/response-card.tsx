@@ -98,24 +98,24 @@ export function ResponseCard({
         {inquiry.status === "sent" && inquiry.final_response && (
           <>
             {inquiry.sent_at && (
-              <div className="text-sm text-gray-500">
+              <div className="text-sm text-muted-foreground">
                 {formatDate(inquiry.sent_at)} 送信
               </div>
             )}
             <div>
-              <span className="text-gray-500 text-sm">件名:</span>
+              <span className="text-muted-foreground text-sm">件名:</span>
               <p className="font-medium">
                 {inquiry.final_response.subject}
               </p>
             </div>
             <div>
-              <span className="text-gray-500 text-sm">本文:</span>
-              <p className="whitespace-pre-wrap mt-1 bg-gray-50 p-4 rounded">
+              <span className="text-muted-foreground text-sm">本文:</span>
+              <p className="whitespace-pre-wrap mt-1 bg-muted p-4 rounded">
                 {inquiry.final_response.body}
               </p>
             </div>
             {inquiry.edit_distance != null && (
-              <div className="text-sm text-gray-500">
+              <div className="text-sm text-muted-foreground">
                 編集距離: {inquiry.edit_distance.toFixed(2)}
               </div>
             )}
