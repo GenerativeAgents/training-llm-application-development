@@ -147,7 +147,7 @@ flowchart LR
 |---------|------|
 | 既存Webアプリ | Next.js (App Router), SQLite |
 | LLMアプリ | FastAPI, LangChain/LangGraph |
-| LLM | Anthropic Claude |
+| LLM | Anthropic Claude（Amazon Bedrock 経由。障害時は Anthropic API を直接利用） |
 | LLMOps | LangSmith |
 
 ## 3. 機能要件
@@ -717,11 +717,9 @@ confidenceは分類の確信度を0.0〜1.0で表してください。
 ### 9.1 必要な環境変数
 
 ```env
-# AnthropicのAPIキー
-ANTHROPIC_API_KEY=sk-ant-xxxxx
-
-# 使用するモデル
-ANTHROPIC_MODEL=claude-haiku-4-5-20251001
+# LLM は既定で Amazon Bedrock の Claude Haiku 4.5 を使う（AWS の認証情報は IAM ロールなど既定のチェーンから取得）
+# Bedrock 障害時のバックアップ: Anthropic の API キーを設定すると Anthropic API を直接使う
+# ANTHROPIC_API_KEY=sk-ant-xxxxx
 
 # LangSmithの設定
 LANGSMITH_API_KEY=lsv2_pt_xxxxx

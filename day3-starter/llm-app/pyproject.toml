@@ -8,6 +8,7 @@ dependencies = [
     "fastapi==0.141.1",
     "langchain==1.3.17",
     "langchain-anthropic==1.6.1",
+    "langchain-aws[anthropic]==1.7.4",
     "langchain-core==1.6.0",
     "langgraph==1.2.11",
     "openevals==0.2.0",

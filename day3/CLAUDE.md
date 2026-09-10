@@ -31,7 +31,7 @@ uv run ruff check .                      # Lint Python code
 uv run mypy .                            # Type check
 ```
 
-Requires `ANTHROPIC_API_KEY` in `llm-app/.env` (see `.env.example`). Optional: `ANTHROPIC_MODEL` (defaults to claude-haiku-4-5-20251001).
+Uses Claude Haiku 4.5 on Amazon Bedrock (`jp.anthropic.claude-haiku-4-5-20251001-v1:0`, ap-northeast-1) by default, authenticated with AWS credentials from the default chain (EC2 instance role in the hands-on environment; `AWS_REGION` overrides the region). As a fallback when Bedrock is unavailable, setting `ANTHROPIC_API_KEY` in `llm-app/.env` switches to the Anthropic API directly (`claude-haiku-4-5-20251001`). See `.env.example` and `llm-app/app/llm.py`.
 
 The Next.js app connects to FastAPI via `LLM_API_URL` env var (defaults to `http://localhost:8000`).
 
@@ -48,6 +48,7 @@ The Next.js app connects to FastAPI via `LLM_API_URL` env var (defaults to `http
 - `web/src/lib/llm.ts` — Calls FastAPI backend with 60s timeout; quality alert = politeness NG
 - `web/src/app/api/inquiries/route.ts` — Uses Next.js 16 `after()` to trigger AI generation in background after returning immediate 200 to customer
 - `llm-app/app/generate/graph.py` — LangGraph state machine definition and `GraphState` TypedDict
+- `llm-app/app/llm.py` — `get_model()`: Bedrock vs Anthropic API selection (by presence of `ANTHROPIC_API_KEY`) and extended-thinking options
 
 ### LangGraph workflow (llm-app/)
 
