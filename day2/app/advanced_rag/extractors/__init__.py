@@ -12,7 +12,7 @@
 
     uv run python -m app.advanced_rag.ingest --extractor basic        # 段階 1, 2: 汎用ツールの素のテキスト(markitdown。PDF は中身の pdfminer)を位置単位で分けるだけ
     uv run python -m app.advanced_rag.ingest --extractor structured   # 段階 3: 文書の構造に合わせて抽出・チャンキング(不要な情報の除去、ヘッダの繰り返しなど)。Vision は使わない
-    uv run python -m app.advanced_rag.ingest --extractor vision       # 段階 4: structured + 図形・画像を Vision LLM に説明させる
+    uv run python -m app.advanced_rag.ingest --extractor vision       # 段階 4: structured + 図形・画像をマルチモーダル LLM に説明させる
 """
 
 from collections.abc import Callable

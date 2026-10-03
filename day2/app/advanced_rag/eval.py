@@ -17,10 +17,10 @@ Weave に登録済みのデータセット(notebooks/part3_1_eval.ipynb で登�
     uv run python -m app.advanced_rag.eval --top-k 4                     # RagModel の属性を変えて測る
     uv run python -m app.advanced_rag.eval --use-collection              # 検索対象を各行の collection(資料群)に限定する
     uv run python -m app.advanced_rag.eval --trials 3                    # 各質問を 3 回ずつ解かせる(回答のぶれをならす)
-    uv run python -m app.advanced_rag.eval --search hybrid               # ベクトル検索と全文検索を RRF で混ぜる(--rrf-k、--fts-query、--fts-fields)
+    uv run python -m app.advanced_rag.eval --search hybrid               # ベクトル検索と全文検索を RRF で混ぜる(--rrf-k、--fts-fields)
     uv run python -m app.advanced_rag.eval --search hybrid --rerank llm  # 検索の上位 20 件を LLM が採点し直して並べ替える(--rerank-depth)
     uv run python -m app.advanced_rag.eval --prompt rules                # 回答用の system prompt を替える(base / rules / evidence / collection。rag.PROMPTS)
-    uv run python -m app.advanced_rag.eval --reasoning-effort medium     # 回答(とキーワード・並べ直し)の reasoning effort を替える
+    uv run python -m app.advanced_rag.eval --reasoning-effort medium     # 回答(と並べ直し)の reasoning effort を替える
     uv run python -m app.advanced_rag.eval --rerank llm --select score   # 並べ直しの点が閾値以上のチャンクだけを渡す(--score-threshold など)
     uv run python -m app.advanced_rag.eval --expand unit+steps           # 同じ区切りのほかのチャンクと、手順の途中から始まる区切りの手前のチャンクも渡す
     uv run python -m app.advanced_rag.eval --label 段階4                 # Weave の一覧に出る評価の名前(研修の段階を見分ける)
@@ -119,8 +119,6 @@ if __name__ == "__main__":
     parser.add_argument("--use-collection", action="store_true", help="検索対象を各行の collection 列の資料群に限定する")
     parser.add_argument("--trials", type=int, default=1, help="各質問を解かせる回数。回答は同じ条件でもぶれるので、比べるときは複数回にする")
     parser.add_argument("--search", choices=["vector", "fts", "hybrid"], default=RagModel.model_fields["search"].default)
-    parser.add_argument("--fts-query", choices=["keywords", "pos", "raw"], default=RagModel.model_fields["fts_query"].default,
-                        help="全文検索に渡す語。pos は形態素の品詞で抜き出したキーワード、keywords は LLM が抜き出したキーワード、raw は質問文そのまま")
     parser.add_argument("--fts-fields", nargs="+", choices=["morph", "bigram"],
                         default=RagModel.model_fields["fts_fields"].default, help="全文検索で見る列(形態素 / bi-gram)")
     parser.add_argument("--rrf-k", type=int, default=RagModel.model_fields["rrf_k"].default)
@@ -146,7 +144,7 @@ if __name__ == "__main__":
 
     # インデックスは事前に配置しておく想定。無いときだけ、コストを示して作るかを確認する
     if not has_index(args.index):
-        cost = ("Vision LLM を約 520 回呼ぶ。約 20 分、$1 未満。data/cache/ に説明文のキャッシュがあれば 2〜3 分"
+        cost = ("マルチモーダル LLM を約 520 回呼ぶ。約 20 分、$1 未満。data/cache/ に説明文のキャッシュがあれば 2〜3 分"
                 if args.index == "vision" else "1〜2 分")
         if input(f"インデックス {args.index} がありません。作りますか?({cost}) [y/N] ").strip().lower() != "y":
             sys.exit(f"uv run python -m app.advanced_rag.build_index --extractor {args.index} で作ってから実行してください")
@@ -173,7 +171,7 @@ if __name__ == "__main__":
     with weave.attributes({"index": meta}):
         summary = asyncio.run(evaluation.evaluate(RagModel(
             index=args.index, top_k=args.top_k, use_collection=args.use_collection, search=args.search,
-            fts_query=args.fts_query, fts_fields=args.fts_fields, rrf_k=args.rrf_k,
+            fts_fields=args.fts_fields, rrf_k=args.rrf_k,
             rerank=args.rerank, rerank_depth=args.rerank_depth,
             reasoning_effort=args.reasoning_effort, select=args.select, score_threshold=args.score_threshold,
             min_selected=args.min_selected, max_selected=args.max_selected, expand=args.expand, max_back=args.max_back,

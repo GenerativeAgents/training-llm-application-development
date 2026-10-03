@@ -10,7 +10,7 @@
 
     uv run python -m app.advanced_rag.build_index
     uv run python -m app.advanced_rag.build_index --extractor basic
-    uv run python -m app.advanced_rag.build_index --extractor vision            # 図形のあるシートを画像化して Vision LLM に説明させる(VISION_MODEL)
+    uv run python -m app.advanced_rag.build_index --extractor vision            # 図形のあるシートを画像化してマルチモーダル LLM に説明させる(VISION_MODEL)
     uv run python -m app.advanced_rag.build_index --embedding-model text-embedding-3-large
 """
 
@@ -18,6 +18,7 @@ import argparse
 import json
 
 import lancedb
+from lancedb.index import FTS
 
 from . import fulltext
 from . import ingest
@@ -39,10 +40,10 @@ def build(extractor: str, embedding_model: str) -> None:
     for column in fulltext.ALL_COLUMNS:
         # 区切りは済んでいるので空白で分けるだけにし、小文字化・語幹・ストップワードは使わない。
         # with_position はフレーズ一致に要る
-        table.create_fts_index(
-            column, replace=True, base_tokenizer="whitespace", with_position=True, max_token_length=None,
+        table.create_index(column, replace=True, config=FTS(
+            base_tokenizer="whitespace", with_position=True, max_token_length=None,
             lower_case=False, stem=False, remove_stop_words=False, ascii_folding=False,
-        )
+        ))
     meta_path(extractor).write_text(json.dumps({"extractor": extractor, "embedding_model": embedding_model}))
     print(f"table {table.name}: {table.count_rows()} rows ({extractor} / {embedding_model}) -> {DB_DIR}")
 

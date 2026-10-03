@@ -1,7 +1,7 @@
-"""structured 抽出器に、図や画像の「図の説明」を Vision LLM で足す抽出器(段階 4)。
+"""structured 抽出器に、図や画像の「図の説明」をマルチモーダル LLM で足す抽出器(段階 4)。
 
 structured は図形の文字だけを出現順に並べるので、矢印の向きやチェックボックスの状態が失われる。
-貼り付けられた画像(画面キャプチャ)の中の文字も取れない。ここでは次の 2 つを Vision LLM に説明させ、
+貼り付けられた画像(画面キャプチャ)の中の文字も取れない。ここでは次の 2 つをマルチモーダル LLM に説明させ、
 `図の説明:` 行として付け足す(`図形テキスト:` 行はキーワード一致に効くので残す)。
 
 - 図形のあるシート(図形 MIN_SHAPES 個以上)を render_drawing.py で PNG にしたもの(シートの末尾に付ける)
@@ -40,7 +40,7 @@ VISION_MODEL = os.environ.get("VISION_MODEL", "gpt-6-luna")
 VISION_REASONING_EFFORT = os.environ.get("VISION_REASONING_EFFORT", "low")
 CACHE_DIR = Path(__file__).resolve().parents[3] / "data" / "cache" / "vision"
 MAX_SIDE = 2000  # これより長い辺は縮小して送る
-WORKERS = 8  # Vision LLM の並列数
+WORKERS = 8  # マルチモーダル LLM の並列数
 MIN_PICTURE_PX = (100, 60)  # シート上の表示がこれより小さい画像(アイコン、ロゴ)は読ませない
 MAX_PICTURE_SCALE = 4  # 画像を図形ごと描くときの倍率の上限(元の画像の解像度に合わせる)
 OVERLAY_MARGIN = 1.0  # 画像の外にはみ出した図形を含めて描く範囲(画像の幅・高さに対する割合)

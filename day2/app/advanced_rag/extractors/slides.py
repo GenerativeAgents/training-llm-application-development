@@ -6,7 +6,7 @@
 - basic(basic.py): Microsoft markitdown の素の出力。図形の XML 出現順(= 重なり順)なので、右上の注記が題より先に出るなど読み順が崩れる
 - structured(extract): render_drawing.Collector で図形を位置つきで集め、上から下・左から右に並べ直す。
   表は行ごとに ` | ` で連結。グラフは題と系列ごとの値の行(`系列名: 項目 値 / …`)にする。矢印の向きは落ちる
-- vision: 上に加えて、スライドを render_drawing.py で PNG にし、structured の行(図形の枠の座標付き)と一緒に Vision LLM に渡す。
+- vision: 上に加えて、スライドを render_drawing.py で PNG にし、structured の行(図形の枠の座標付き)と一緒にマルチモーダル LLM に渡す。
   図形の文字は書き写させず、矢印・入れ子・配置で表された関係だけを 1 事実 1 行の JSON で返させ、
   指定された行の後ろに `図の説明:` 行として差し込む(pdf.py の vision と同じやり方)
 """
@@ -113,7 +113,7 @@ def extract(path: Path) -> list[Chunked]:
 
 
 def sections_vision(path: Path) -> list[Section]:
-    """スライドの画像と、図形の文字の行(画像上の座標付き)を一緒に Vision LLM に渡し、説明を指定の行の後ろに差し込む。
+    """スライドの画像と、図形の文字の行(画像上の座標付き)を一緒にマルチモーダル LLM に渡し、説明を指定の行の後ろに差し込む。
 
     テキスト行は structured の行(slide_lines)と同じ行・同じ順なので、LLM が返す行番号がそのまま本文の行を指す。
     行番号が範囲外なら、スライドの末尾に付ける。

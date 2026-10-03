@@ -96,13 +96,6 @@ PROMPTS = {
 }
 
 
-KEYWORD_PROMPT = (
-    "次の質問で文書を全文検索します。検索に使うキーワードを抜き出してください。"
-    "質問文に出てくる固有名・識別子・専門用語をそのまま使い、助詞や「教えて」「どこ」などの言い回しは除きます。"
-    "キーワードだけを空白区切りで 1 行で出力してください。"
-)
-
-
 RERANK_PROMPT = (
     "検索で取り出した文書のチャンクが、質問に答えるのにどれだけ役立つかを 0〜10 の整数で score に採点します。"
     "10: 質問の答えそのもの、またはその一部が書かれている。"
@@ -231,7 +224,6 @@ class RagModel(weave.Model):
     search: str = (
         "vector"  # vector(ベクトル検索)/ fts(全文検索)/ hybrid(両方を RRF で混ぜる)
     )
-    fts_query: str = "pos"  # 全文検索に渡す語。pos なら形態素の品詞で抜き出したキーワード、keywords なら LLM が抜き出したキーワード、raw なら質問文そのまま
     fts_fields: list[str] = [
         "morph",
         "bigram",
@@ -246,23 +238,6 @@ class RagModel(weave.Model):
     expand: str = "none"  # none / unit(同じ区切りのほかのチャンクも渡す)/ unit+steps(さらに、区切りが手順の途中から始まっていれば手前のチャンクも)
     max_back: int = 2  # unit+steps で手前にさかのぼるチャンクの数の上限
     max_context_chars: int = 20000  # 広げるときの、渡すチャンクの文字数の合計の上限(選んだチャンクそのものは必ず渡す)
-
-    @weave.op
-    def keywords(self, question: str) -> str:
-        """全文検索用のキーワード(空白区切り)を LLM に抜き出させる(fts_query="keywords" のとき。比較用)。"""
-        res = client.chat.completions.create(
-            model=self.chat_model,
-            messages=[
-                {"role": "system", "content": KEYWORD_PROMPT},
-                {"role": "user", "content": question},
-            ],
-            **(
-                {"reasoning_effort": self.reasoning_effort}
-                if self.reasoning_effort
-                else {}
-            ),
-        )
-        return res.choices[0].message.content.strip()
 
     @weave.op
     def pos_keywords(self, question: str) -> str:
@@ -458,17 +433,7 @@ class RagModel(weave.Model):
     def _fts_hits(
         self, table: lancedb.table.Table, question: str, where: str | None, depth: int
     ) -> list[dict]:
-        if self.fts_query == "keywords":
-            text = self.keywords(question)
-        elif self.fts_query == "pos":
-            text = self.pos_keywords(question)
-        elif self.fts_query == "raw":
-            text = question
-        else:
-            raise ValueError(
-                f"fts_query は keywords / pos / raw のどれか: {self.fts_query!r}"
-            )
-        query = fulltext.query(text, self.fts_fields)
+        query = fulltext.query(self.pos_keywords(question), self.fts_fields)
         if query is None:
             return []
         search = table.search(query, query_type="fts").limit(depth)

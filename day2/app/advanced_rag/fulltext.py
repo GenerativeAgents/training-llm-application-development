@@ -13,11 +13,10 @@
 LanceDB 標準の `ngram` トークナイザは使わない。検索語の n-gram をばらばらに OR で探すだけで、並びの一致
 (フレーズ)が効かず、`FB1999904` が `19` を含むだけのチャンクにも当たる。
 
-問い合わせは空白区切りの語(質問文から品詞で抜き出したキーワード、LLM が抜き出したキーワード、
-または質問文そのまま)で、Elasticsearch の
+問い合わせは空白区切りの語(質問文から品詞で抜き出したキーワード)で、Elasticsearch の
 match + match_phrase と同じ形にする。語を区切った単位の OR で広く拾い(BM25)、語の並びがそのまま
-一致したチャンクには、語ごとのフレーズ一致の点を足す。フレーズ一致だけにすると、LLM が文書に無い複合語
-(「顧客検索API」)を作ったときに取りこぼす。
+一致したチャンクには、語ごとのフレーズ一致の点を足す。フレーズ一致だけにすると、質問の複合語が文書に
+そのままの形で無いとき(質問は「顧客検索API」、文書は「顧客の検索API」)に取りこぼす。
 """
 
 import re
@@ -58,7 +57,7 @@ def morphs(text: str) -> list[str]:
 
 def _tokenizer():
     if not hasattr(_sudachi, "tokenizer"):
-        _sudachi.tokenizer = Dictionary(dict="core").create(SplitMode.C)
+        _sudachi.tokenizer = Dictionary(dict="core").tokenizer(SplitMode.C)
     return _sudachi.tokenizer
 
 

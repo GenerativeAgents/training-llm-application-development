@@ -1,4 +1,4 @@
-"""xlsx の図形(drawing XML)をシートごとに、pptx をスライドごとに PNG に描く。Vision LLM に読ませるための画像化。
+"""xlsx の図形(drawing XML)をシートごとに、pptx をスライドごとに PNG に描く。マルチモーダル LLM に読ませるための画像化。
 
 LibreOffice で画像化すると、片端だけ図形に接続された折れ線コネクタの経路を誤ることがあったので、
 自前で描く。Excel / PowerPoint と同じ見た目は目指さない。箱・ラベル・矢印の向き・チェックボックスの
@@ -111,7 +111,7 @@ def metafile_suffix(data: bytes) -> str | None:
 def metafile_png(data: bytes) -> bytes | None:
     """EMF / WMF を PNG にする。Pillow が開けないので LibreOffice(Draw)に描かせる。
 
-    グラフや図を Excel / PowerPoint に貼るとこの形式になることが多く、そのままでは Vision LLM に渡す画像に何も写らない。
+    グラフや図を Excel / PowerPoint に貼るとこの形式になることが多く、そのままではマルチモーダル LLM に渡す画像に何も写らない。
     soffice は 1 ページの Draw 文書として開くため、描かれた部分(白でないところ)だけに切り抜く。
     LibreOffice が無い、EMF / WMF でない、変換に失敗した、のいずれでも None を返す(呼び出し側で画像なしとして扱う)。
     結果は data/cache/metafile/ に残す(同じ画像を何度も変換しない。失敗も空ファイルで覚える)。
