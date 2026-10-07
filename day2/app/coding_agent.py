@@ -27,6 +27,7 @@ WORK_DIR = Path("tmp/coding-agent").resolve()
 
 def run_command(command: str) -> str:
     """作業ディレクトリでシェルコマンドを実行し、標準出力・標準エラー出力・終了コードをJSONで返す"""
+    WORK_DIR.mkdir(parents=True, exist_ok=True)
     result = subprocess.run(
         command,
         shell=True,
