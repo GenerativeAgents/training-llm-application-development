@@ -10,7 +10,6 @@
 
 ```bash
 ./scripts/rag_indexes/download.sh --version 2026-10-08
-uv sync --frozen
 ```
 
 `--version` を省略するとGitHubのLatest Releaseから取得します。研修では講師から指定された日付を使ってください。
