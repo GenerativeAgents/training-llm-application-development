@@ -15,7 +15,7 @@ pdf.py / slides.py も describe() と json_items() をここから使う(IMAGE_P
 (画像ごとに添えるテキストを含む)が同じなら LLM を呼ばない。描き方を変えたら呼び直す)。API エラーは例外のまま止める(黙って図形テキストだけにはしない)。
 
 モデルは環境変数 VISION_MODEL(既定 gpt-6-luna)、推論の effort は VISION_REASONING_EFFORT
-(既定 low。推論モデルでないなら空にする)。base URL / キーは rag.py と同じく環境変数から。
+(既定 low。推論モデルでないなら空にする)。
 """
 
 import base64
@@ -65,7 +65,7 @@ IMAGE_PROMPT = f"""これは文書に貼られた画像 1 枚です。画面キ�
 {OMIT}
 前置きや見出しは不要で、箇条書きの行だけを出力してください。"""
 
-_client = OpenAI()  # base URL / キーは環境変数から。並列で呼ぶので 1 つを共有する
+_client = OpenAI()  # 並列で呼ぶので 1 つを共有する
 
 
 def _describe(png: bytes, prompt: str, json_mode: bool = False) -> str:

@@ -20,8 +20,8 @@ PROJECT = os.environ["WANDB_PROJECT"]
 DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 DB_DIR = DATA_DIR / "lancedb"
 
-# base URL と(ダミーの)キーは環境変数 OPENAI_BASE_URL / OPENAI_API_KEY から読まれる
-client = OpenAI()
+# 研修では全員が同時に評価を回すので、レートリミット(429)に当たってもリトライして待つ(デフォルトは 2 回)
+client = OpenAI(max_retries=10)
 
 SYSTEM_PROMPT = (
     "あなたは、システム開発の設計書、ソフトウェアの操作手順書、行政機関の資料について質問に答えるアシスタントです。"
