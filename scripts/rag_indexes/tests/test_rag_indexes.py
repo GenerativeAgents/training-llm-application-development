@@ -17,12 +17,13 @@ from unittest.mock import patch
 import lancedb
 from lancedb.index import FTS
 
-ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "scripts"))
+ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(ROOT / "scripts/rag_indexes"))
 sys.path.insert(0, str(ROOT / "day2"))
 
-import rag_indexes as distribution  # noqa: E402
-from app.advanced_rag import fulltext, index_distribution  # noqa: E402
+import cli as distribution  # noqa: E402
+import validate as index_validation  # noqa: E402
+from app.advanced_rag import fulltext  # noqa: E402
 
 SHA = "a" * 40
 
@@ -123,7 +124,7 @@ class DistributionTest(unittest.TestCase):
         self.download()
         self.assertFalse((self.destination / "docs_basic.lance/stale").exists())
         self.assert_simple_preserved()
-        indexes = index_distribution.validate(self.destination)
+        indexes = index_validation.validate(self.destination)
         self.assertEqual(
             {name: entry["rows"] for name, entry in indexes.items()},
             {name: 2 for name in distribution.INDEXES},
@@ -137,6 +138,25 @@ class DistributionTest(unittest.TestCase):
             ],
             SHA,
         )
+
+    def test_standalone_starter_download_from_another_directory(self):
+        starter = self.destination.parent.parent
+        scripts = starter / "scripts/rag_indexes"
+        scripts.mkdir(parents=True)
+        for name in ("download.sh", "cli.py"):
+            shutil.copy2(ROOT / "scripts/rag_indexes" / name, scripts / name)
+        result = subprocess.run(
+            ["bash", str(scripts / "download.sh"), "--archive", str(self.archive)],
+            cwd=self.work,
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+        self.assertIn(str(self.destination), result.stdout)
+        self.assertEqual(
+            index_validation.validate(self.destination)["basic"]["rows"], 2
+        )
+        self.assert_simple_preserved()
 
     def test_truncated_archive_leaves_existing_data(self):
         self.download()
@@ -198,7 +218,7 @@ class DistributionTest(unittest.TestCase):
             (self.destination / "docs_basic.lance/old_marker").read_text(), "old"
         )
         self.assertEqual(
-            index_distribution.validate(self.destination)["vision"]["rows"], 2
+            index_validation.validate(self.destination)["vision"]["rows"], 2
         )
         self.assert_simple_preserved()
 
@@ -271,13 +291,13 @@ class DistributionTest(unittest.TestCase):
             return SHA if command[1] == "rev-parse" else ""
 
         def build_or_validate(*command, **kwargs):
-            if "app.advanced_rag.index_distribution" in command:
+            if str(distribution.VALIDATOR) in command:
                 db = (
                     Path(command[command.index("--db-dir") + 1])
                     if "--db-dir" in command
                     else db_dir
                 )
-                index_distribution.validate(db)
+                index_validation.validate(db)
                 if "--output" in command:
                     Path(command[command.index("--output") + 1]).write_text(
                         json.dumps(self.manifest)
@@ -319,8 +339,7 @@ class DistributionTest(unittest.TestCase):
         result = subprocess.run(
             [
                 sys.executable,
-                "-m",
-                "app.advanced_rag.index_distribution",
+                str(distribution.VALIDATOR),
                 "--db-dir",
                 str(self.payload),
                 "--source-sha",
@@ -328,7 +347,7 @@ class DistributionTest(unittest.TestCase):
                 "--output",
                 str(manifest),
             ],
-            cwd=ROOT / "day2",
+            cwd=self.work,
             env=environment,
             text=True,
             capture_output=True,
@@ -444,7 +463,7 @@ class ArgumentsTest(unittest.TestCase):
             ("download", "--version", "2026-10-08", "--archive", "x"),
         ):
             result = subprocess.run(
-                [sys.executable, str(ROOT / "scripts/rag_indexes.py"), *args],
+                [sys.executable, str(ROOT / "scripts/rag_indexes/cli.py"), *args],
                 capture_output=True,
             )
             self.assertEqual(result.returncode, 2, args)

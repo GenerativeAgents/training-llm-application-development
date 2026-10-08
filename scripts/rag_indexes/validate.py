@@ -4,6 +4,7 @@ import argparse
 import json
 import platform
 import subprocess
+import sys
 from datetime import datetime, timezone
 from importlib.metadata import version
 from pathlib import Path
@@ -11,11 +12,15 @@ from pathlib import Path
 import lancedb
 from lancedb.query import MatchQuery
 
-from . import fulltext
+ROOT = Path(__file__).resolve().parents[2]
+PROJECT = ROOT / "day2" if (ROOT / "day2").is_dir() else ROOT
+sys.path.insert(0, str(PROJECT))
+
+from app.advanced_rag import fulltext  # noqa: E402
 
 INDEXES = ("basic", "structured", "vision")
 PACKAGES = ("lancedb", "pyarrow", "sudachipy", "sudachidict-core")
-DB_DIR = Path(__file__).resolve().parents[2] / "data/lancedb"
+DB_DIR = PROJECT / "data/lancedb"
 
 
 def validate(db_dir: Path) -> dict:
@@ -87,8 +92,8 @@ def main() -> None:
         # rag.py同様のdotenv読込を行うが、APIクライアントやWeaveは初期化しない。
         from dotenv import load_dotenv
 
-        load_dotenv(override=True)
-        from .vision_config import VISION_MODEL, VISION_REASONING_EFFORT
+        load_dotenv(PROJECT / ".env", override=True)
+        from app.advanced_rag.vision_config import VISION_MODEL, VISION_REASONING_EFFORT
 
         manifest = {
             "format_version": 1,

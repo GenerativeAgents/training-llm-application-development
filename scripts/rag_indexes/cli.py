@@ -15,8 +15,9 @@ from typing import Any
 import tomllib
 
 REPO = "GenerativeAgents/training-llm-application-development"
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2]
 PROJECT = ROOT / "day2" if (ROOT / "day2").is_dir() else ROOT
+VALIDATOR = Path(__file__).resolve().with_name("validate.py")
 ASSET = "advanced-rag-indexes.tar.gz"
 INDEXES = ("basic", "structured", "vision")
 COMPONENTS = tuple(
@@ -251,8 +252,7 @@ def create(args: argparse.Namespace) -> None:
         run(
             *uv_run,
             "python",
-            "-m",
-            "app.advanced_rag.index_distribution",
+            str(VALIDATOR),
             "--source-sha",
             sha,
             "--output",
@@ -285,8 +285,7 @@ def create(args: argparse.Namespace) -> None:
             "run",
             "--frozen",
             "python",
-            "-m",
-            "app.advanced_rag.index_distribution",
+            str(VALIDATOR),
             "--db-dir",
             str(restored),
             cwd=project,
@@ -402,7 +401,7 @@ def main() -> None:
     commands = parser.add_subparsers(dest="command", required=True)
     build = commands.add_parser(
         "create",
-        prog="rag_indexes_create.sh",
+        prog="scripts/rag_indexes/create.sh",
         description="3種類を再生成・検証・梱包 (OpenAI API利用あり)",
     )
     build.add_argument("--embedding-model", default="text-embedding-3-small")
@@ -410,7 +409,7 @@ def main() -> None:
     build.set_defaults(action=create)
     get = commands.add_parser(
         "download",
-        prog="rag_indexes_download.sh",
+        prog="scripts/rag_indexes/download.sh",
         description="指定日付のRelease、省略時はLatestを配置",
     )
     inputs = get.add_mutually_exclusive_group()
@@ -421,7 +420,7 @@ def main() -> None:
     get.set_defaults(action=download)
     publish = commands.add_parser(
         "release-create",
-        prog="release_create.sh",
+        prog="scripts/release/create.sh",
         description="日付Releaseに配布物を添付。既存Draftは公開可能",
     )
     publish.add_argument("--version", type=version, required=True)
@@ -431,7 +430,7 @@ def main() -> None:
     publish.set_defaults(action=release_create)
     delete = commands.add_parser(
         "release-delete",
-        prog="release_delete.sh",
+        prog="scripts/release/delete.sh",
         description="指定日付のRelease・添付・リモートタグを削除",
     )
     delete.add_argument("--version", type=version, required=True)

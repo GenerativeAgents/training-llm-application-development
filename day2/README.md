@@ -8,7 +8,7 @@ GitHubへのログインやOpenAI APIキーは取得には不要です。Python 
 `day2-starter/` の中で実行します。
 
 ```bash
-./scripts/rag_indexes_download.sh --version 2026-10-08
+./scripts/rag_indexes/download.sh --version 2026-10-08
 uv sync --frozen
 ```
 
@@ -19,10 +19,10 @@ Latestに配布物がまだ添付されていない場合はエラーになり�
 
 ```bash
 # 完全版のday2/data/lancedb/へ配置
-./scripts/rag_indexes_download.sh --version 2026-10-08
+./scripts/rag_indexes/download.sh --version 2026-10-08
 
 # starterへ配置
-./scripts/rag_indexes_download.sh --version 2026-10-08 --destination day2-starter/data/lancedb
+./scripts/rag_indexes/download.sh --version 2026-10-08 --destination day2-starter/data/lancedb
 ```
 
 取得・展開・生成条件の確認に成功してから、次の9項目だけを交換します。
@@ -59,7 +59,7 @@ data/lancedb/
 ```bash
 bash scripts/generate-day2-starter/main.sh
 # starterの差分を確認してコミット・pushしてから生成
-./scripts/rag_indexes_create.sh
+./scripts/rag_indexes/create.sh
 ```
 
 各抽出器は `day2/data/lancedb/` の対応テーブルを再生成します。`simple_rag` は触りません。
@@ -81,18 +81,18 @@ bash scripts/generate-day2-starter/main.sh
 starterや別のクリーンな受講環境に配置し、ハンズオンのアプリ動作も確認します。
 
 ```bash
-./scripts/rag_indexes_download.sh --archive dist/advanced-rag-indexes.tar.gz \
+./scripts/rag_indexes/download.sh --archive dist/advanced-rag-indexes.tar.gz \
   --destination day2-starter/data/lancedb
 
 # Draftを作成して添付。まだ一般公開されない
-./scripts/release_create.sh --version 2026-10-08 --draft
+./scripts/release/create.sh --version 2026-10-08 --draft
 
 # Draftはアクセス権のある講師がghで取得し、同じ復元処理を試す
 mkdir -p tmp/release-test
 gh release download 2026-10-08 \
   --repo GenerativeAgents/training-llm-application-development \
   --pattern advanced-rag-indexes.tar.gz --dir tmp/release-test --clobber
-./scripts/rag_indexes_download.sh --archive tmp/release-test/advanced-rag-indexes.tar.gz \
+./scripts/rag_indexes/download.sh --archive tmp/release-test/advanced-rag-indexes.tar.gz \
   --destination day2-starter/data/lancedb
 ```
 
@@ -101,7 +101,7 @@ gh release download 2026-10-08 \
 検証した配布物を使い、1コマンドで日付タグ・教材Release・添付を作成します。
 
 ```bash
-./scripts/release_create.sh --version 2026-10-08
+./scripts/release/create.sh --version 2026-10-08
 ```
 
 タグは配布物に記録した生成元コミットを指します。GitHubにpush済みのコミットが必要です。
@@ -110,14 +110,14 @@ gh release download 2026-10-08 \
 添付に失敗した場合はDraftのまま残り、同じコマンドで再試行できます。
 公開時はLatestに指定します。教材ソースは同じタグのGitHub標準のソースアーカイブから取得できます。
 
-公開後に認証なしで `rag_indexes_download.sh --version ...` を実行して取得を確認してください。
+公開後に認証なしで `scripts/rag_indexes/download.sh --version ...` を実行して取得を確認してください。
 `--repo owner/repo` はテスト用の別リポジトリに向ける場合に使えます。
 配布物が別のパスにある場合は `--archive PATH` で指定します（Release上の添付名は固定です）。
 
 ## 講師: 検証用Releaseの削除
 
 ```bash
-./scripts/release_delete.sh --version 2026-10-08
+./scripts/release/delete.sh --version 2026-10-08
 ```
 
 指定日付のRelease・全添付・リモートのGitタグを削除します。ソースコミットとローカルのタグは残ります。
@@ -127,13 +127,28 @@ gh release download 2026-10-08 \
 
 ## スクリプトの保守
 
-4つの `.sh` は共通処理の `scripts/rag_indexes.py` を呼びます。取得・復元・Release操作にはPython標準ライブラリだけを使い、
-生成時の検索検証は `app/advanced_rag/index_distribution.py` が担当します。
-starterは生成スクリプトが取得用 `.sh` と共通処理をコピーします。starter側を直接編集しないでください。
+配布用の処理をリポジトリの `scripts/` 以下にまとめています。
+
+```text
+scripts/
+├── rag_indexes/
+│   ├── create.sh
+│   ├── download.sh
+│   ├── cli.py
+│   ├── validate.py
+│   └── tests/
+└── release/
+    ├── create.sh
+    └── delete.sh
+```
+
+4つの `.sh` は共通処理の `scripts/rag_indexes/cli.py` を呼びます。取得・復元・Release操作にはPython標準ライブラリだけを使い、
+生成時の検索検証は `scripts/rag_indexes/validate.py` がday2のuv環境で行います。
+starterは生成スクリプトが `scripts/rag_indexes/download.sh` と `cli.py` をコピーします。starter側を直接編集しないでください。
 starter生成時にはローカルの `data/lancedb/`・`data/cache/` をコピーしません。
 
 外部API・実際のRelease操作なしで、配布・復元とRelease操作のテストを実行できます（リポジトリのルートから）。
 
 ```bash
-uv run --project day2 --frozen python -m unittest discover -s scripts/tests -v
+uv run --project day2 --frozen python -m unittest discover -s scripts/rag_indexes/tests -v
 ```

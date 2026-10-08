@@ -44,7 +44,7 @@ if [ -d "$OVERRIDES" ]; then
 fi
 
 # 3. 受講者用の取得スクリプトを共通実装とともに同梱する
-mkdir -p "$DEST/scripts"
-cp "$ROOT/scripts/rag_indexes_download.sh" "$ROOT/scripts/rag_indexes.py" "$DEST/scripts/"
+mkdir -p "$DEST/scripts/rag_indexes"
+cp "$ROOT/scripts/rag_indexes/download.sh" "$ROOT/scripts/rag_indexes/cli.py" "$DEST/scripts/rag_indexes/"
 
 echo "OK: $DEST を $SRC から再生成しました"
