@@ -12,8 +12,7 @@ from pathlib import Path
 import lancedb
 from lancedb.query import MatchQuery
 
-ROOT = Path(__file__).resolve().parents[2]
-PROJECT = ROOT / "day2" if (ROOT / "day2").is_dir() else ROOT
+PROJECT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT))
 
 from app.advanced_rag import fulltext  # noqa: E402

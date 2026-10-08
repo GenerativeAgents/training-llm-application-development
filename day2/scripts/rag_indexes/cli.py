@@ -15,8 +15,8 @@ from typing import Any
 import tomllib
 
 REPO = "GenerativeAgents/training-llm-application-development"
-ROOT = Path(__file__).resolve().parents[2]
-PROJECT = ROOT / "day2" if (ROOT / "day2").is_dir() else ROOT
+PROJECT = Path(__file__).resolve().parents[2]
+ROOT = PROJECT.parent
 VALIDATOR = Path(__file__).resolve().with_name("validate.py")
 ASSET = "advanced-rag-indexes.tar.gz"
 INDEXES = ("basic", "structured", "vision")
@@ -222,7 +222,7 @@ def create(args: argparse.Namespace) -> None:
         raise ValueError(
             "生成元を記録するため、変更と追加ファイルをコミットしてから生成してください"
         )
-    project = ROOT / "day2"
+    project = PROJECT
     run("uv", "sync", "--frozen", "--project", str(project))
     uv_run = ["uv", "run", "--frozen"]
     # 抽出器のimportより前にAPIキー・Vision設定を読み込む必要がある。

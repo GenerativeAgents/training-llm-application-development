@@ -28,3 +28,7 @@ Makefile
 app.py
 pyproject.toml
 uv.lock
+
+# --- 受講者用の取得スクリプト（講師用の生成・検証・Release操作は含めない） ---
+scripts/rag_indexes/download.sh
+scripts/rag_indexes/cli.py

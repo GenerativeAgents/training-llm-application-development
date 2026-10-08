@@ -17,9 +17,10 @@ from unittest.mock import patch
 import lancedb
 from lancedb.index import FTS
 
-ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(ROOT / "scripts/rag_indexes"))
-sys.path.insert(0, str(ROOT / "day2"))
+PROJECT = Path(__file__).resolve().parents[3]
+ROOT = PROJECT.parent
+sys.path.insert(0, str(PROJECT / "scripts/rag_indexes"))
+sys.path.insert(0, str(PROJECT))
 
 import cli as distribution  # noqa: E402
 import validate as index_validation  # noqa: E402
@@ -144,7 +145,7 @@ class DistributionTest(unittest.TestCase):
         scripts = starter / "scripts/rag_indexes"
         scripts.mkdir(parents=True)
         for name in ("download.sh", "cli.py"):
-            shutil.copy2(ROOT / "scripts/rag_indexes" / name, scripts / name)
+            shutil.copy2(PROJECT / "scripts/rag_indexes" / name, scripts / name)
         result = subprocess.run(
             ["bash", str(scripts / "download.sh"), "--archive", str(self.archive)],
             cwd=self.work,
@@ -305,6 +306,7 @@ class DistributionTest(unittest.TestCase):
 
         with (
             patch.object(distribution, "ROOT", root),
+            patch.object(distribution, "PROJECT", project),
             patch.object(distribution, "output", side_effect=git_output),
         ):
             with patch.object(
@@ -463,7 +465,7 @@ class ArgumentsTest(unittest.TestCase):
             ("download", "--version", "2026-10-08", "--archive", "x"),
         ):
             result = subprocess.run(
-                [sys.executable, str(ROOT / "scripts/rag_indexes/cli.py"), *args],
+                [sys.executable, str(PROJECT / "scripts/rag_indexes/cli.py"), *args],
                 capture_output=True,
             )
             self.assertEqual(result.returncode, 2, args)
