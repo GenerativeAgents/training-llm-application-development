@@ -10,6 +10,8 @@ from openai import OpenAI
 from streamlit_feedback import streamlit_feedback
 from weave.trace.weave_client import Call
 
+from app.session_state import reset_session_state_on_page_change
+
 
 class RagOutput(TypedDict):
     hits: list[dict[str, str]]
@@ -78,6 +80,7 @@ def send_feedback(feedback: Feedback, call: Call) -> None:
 
 
 def app() -> None:
+    reset_session_state_on_page_change(__file__)
     init_weave()
     st.title("シンプルなRAG")
 

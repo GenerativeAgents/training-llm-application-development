@@ -122,7 +122,7 @@ def metafile_png(data: bytes) -> bytes | None:
     グラフや図を Excel / PowerPoint に貼るとこの形式になることが多く、そのままではマルチモーダル LLM に渡す画像に何も写らない。
     soffice は 1 ページの Draw 文書として開くため、描かれた部分(白でないところ)だけに切り抜く。
     LibreOffice が無い、EMF / WMF でない、変換に失敗した、のいずれでも None を返す(呼び出し側で画像なしとして扱う)。
-    結果は data/cache/metafile/ に残す(同じ画像を何度も変換しない。失敗も空ファイルで覚える)。
+    結果は data/cache/metafile/ に残す(変換失敗も空ファイルで覚えるが、LibreOffice 未導入時は残さない)。
     """
     suffix = metafile_suffix(data)
     if not suffix:
@@ -139,6 +139,8 @@ def metafile_png(data: bytes) -> bytes | None:
             subprocess.run(["soffice", f"-env:UserInstallation=file://{SOFFICE_PROFILE}", "--headless",
                             "--convert-to", f"png:draw_png_Export:{opts}", "--outdir", tmp, str(src)],
                            capture_output=True, timeout=180, check=True)
+        except FileNotFoundError:
+            return None  # LibreOffice を導入した後で再試行できるようにする
         except (OSError, subprocess.SubprocessError):
             cache.write_bytes(b"")
             return None
@@ -396,7 +398,12 @@ def anchor_box(a: ET.Element, cols: list[float], rows: list[float]) -> list[floa
         g: Callable[[str], int] = lambda k: int(cast(str, cast(ET.Element, node.find(f"xdr:{k}", NS)).text))
         return cols[min(g("col"), len(cols) - 1)] + g("colOff") / EMU_PX, rows[min(g("row"), len(rows) - 1)] + g("rowOff") / EMU_PX
 
-    x0, y0 = pt(cast(ET.Element, a.find("xdr:from", NS)))
+    frm = a.find("xdr:from", NS)
+    if frm is None:  # absoluteAnchor はセル位置ではなく EMU の絶対座標を持つ
+        pos = cast(ET.Element, a.find("xdr:pos", NS))
+        x0, y0 = int(cast(str, pos.get("x"))) / EMU_PX, int(cast(str, pos.get("y"))) / EMU_PX
+    else:
+        x0, y0 = pt(frm)
     to = a.find("xdr:to", NS)
     if to is not None:
         x1, y1 = pt(to)

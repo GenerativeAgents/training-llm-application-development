@@ -2,6 +2,7 @@ from typing import Any
 
 import streamlit as st
 import weave
+
 from app.advanced_rag.rag import DATA_DIR, PROJECT, PROMPTS, RagModel
 
 CORPUS_DIR = DATA_DIR / "corpus"
@@ -38,17 +39,21 @@ class GuiRagModel(RagModel):
         """検索が終わった時点で、LLM に渡すチャンクの一覧を出す。op にしないので、トレースは評価と同じ形になる。"""
         retrieved = super().retrieve(question, collection)
         st.subheader("LLM に渡す情報")
-        for c in retrieved["contexts"]:
+        corpus_dir = CORPUS_DIR.resolve()
+        for i, c in enumerate(retrieved["contexts"]):
             with st.expander(c["id"]):
                 st.caption(f"{c['title']}")
                 st.code(c["text"], language=None, wrap_lines=True)
-                path = CORPUS_DIR / c["file"]
+                path = (corpus_dir / c["file"]).resolve()
+                if not path.is_relative_to(corpus_dir) or not path.is_file():
+                    st.caption("元のファイルが見つからないため、ダウンロードできません。")
+                    continue
                 st.download_button(
                     "元のファイルをダウンロード",
                     path.read_bytes,
                     file_name=path.name,
                     on_click="ignore",
-                    key=c["id"],
+                    key=f"source-{i}-{c['id']}",
                 )
         return retrieved
 

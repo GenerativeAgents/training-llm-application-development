@@ -62,7 +62,7 @@ def main(extractor: str = DEFAULT_EXTRACTOR) -> None:
         sys.exit(f"ID が重複しています: {dupes}")
     out_path = docs_path(extractor)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    with out_path.open("w") as f:
+    with out_path.open("w", encoding="utf-8") as f:
         for r in records:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
 

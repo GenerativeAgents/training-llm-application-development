@@ -124,7 +124,7 @@ def describe(path: Path, images: dict[str, "Image.Image"], prompt: str,
         key = hashlib.sha1(f"{file_hash}\n{name}\n{image_hash}\n{VISION_MODEL}\n{VISION_REASONING_EFFORT}\n{text}".encode()).hexdigest()
         cache = CACHE_DIR / f"{key}.txt"
         if cache.exists():
-            out[name] = cache.read_text()
+            out[name] = cache.read_text(encoding="utf-8")
         else:
             todo[name] = (cache, png, text)
     if todo:
@@ -134,7 +134,7 @@ def describe(path: Path, images: dict[str, "Image.Image"], prompt: str,
             for i, future in enumerate(as_completed(futures), 1):
                 name = futures[future]
                 text = future.result()
-                todo[name][0].write_text(text)
+                todo[name][0].write_text(text, encoding="utf-8")
                 out[name] = text
                 print(f"  vision {path.name}: {i}/{len(todo)}", end="\r", file=sys.stderr)
         print(file=sys.stderr)

@@ -143,7 +143,12 @@ class EvidenceAnswer(BaseModel):
 
 
 def load_jsonl(path: Path) -> list[dict[str, Any]]:
-    return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+
+def quote(value: str) -> str:
+    """LanceDB のフィルタ式に埋め込む文字列リテラルを作る。"""
+    return "'" + value.replace("'", "''") + "'"
 
 
 EMBED_BATCH = 32  # 1 リクエストあたりの文書数(トークン上限 30 万に収める)
@@ -187,7 +192,7 @@ def index_meta(index: str) -> dict[str, str]:
         raise RuntimeError(
             f"インデックス {index} がありません。uv run python -m app.advanced_rag.build_index --extractor {index} を実行してください"
         )
-    return json.loads(meta_path(index).read_text())
+    return json.loads(meta_path(index).read_text(encoding="utf-8"))
 
 
 def get_table(index: str, embedding_model: str) -> lancedb.table.Table:
@@ -365,9 +370,6 @@ class RagModel(weave.Model):
                 .to_list()
             )
 
-        def quote(value: str) -> str:
-            return "'" + value.replace("'", "''") + "'"
-
         included: set[str] = set()
         size = 0
         groups = []
@@ -452,7 +454,7 @@ class RagModel(weave.Model):
         depth = max(self.top_k, self.rank_depth)
         # 文書の collection 列(メタデータ)で先に絞ってから、その中で検索する(prefilter)
         where = (
-            f"collection = '{collection}'"
+            f"collection = {quote(collection)}"
             if self.use_collection and collection
             else None
         )

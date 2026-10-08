@@ -142,11 +142,12 @@ def sections_vision(path: Path) -> list[Section]:
     for name, lines in boxed.items():
         groups: dict[int, list[str]] = {}
         for after, text in vision.json_items(described.get(name, "")) if name in described else []:
-            groups.setdefault(after if 1 <= after <= len(lines) else len(lines), []).append(text)
+            groups.setdefault(after if 1 <= after <= len(lines) else len(lines) + 1, []).append(text)
         out: list[Line] = []
         for n, (_, line) in enumerate(lines, 1):
             out.append(line)
             out += vision.description_lines("\n".join(groups.get(n, [])))
+        out += vision.description_lines("\n".join(groups.get(len(lines) + 1, [])))
         result.append((name, out))
     return result
 
