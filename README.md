@@ -34,19 +34,3 @@ make build   # day2/ と day3/ から両方の starter を再生成する
 - **starter 用にファイルを上書きする**：`scripts/generate-day{2,3}-starter/overrides/` に対象パスと同じ構造で配置します。上書きは（include コピーの後に）最後に適用され、通常は解答コードを空にして受講者が埋められるようにします（例：`day3-starter` の `generate_response.py`）。
 
 元ファイルを編集したら `make build` を実行し、starter の差分を確認してからコミットしてください。
-
-## dev container のツールバージョン
-
-`day2/` と `day3/` の dev container は、[training-shared](https://github.com/GenerativeAgents/training-shared) の `lib/courses/ai-agent-dev/setup.sh` と `lib/courses/common-setup.sh` に合わせています。
-
-| ツール | バージョン |
-| ------ | ---------- |
-| uv | `0.12.9` |
-| Node.js | `24.11.1` |
-| Claude Code | `2.1.220` |
-
-Claude Code はネイティブインストーラーで固定版を導入し、`DISABLE_AUTOUPDATER=1` で自動更新を止めています。Playwright 用の Chromium の依存関係もインストールします。
-
-DAY3 は `web/.npmrc` の `min-release-age=14` を引き続き有効にするため、npm を `11.19.0` に固定しています。Node.js `24.11.1` に同梱される npm は、この設定に対応していません。
-
-バージョンを揃え直すときは、両日の `.devcontainer/devcontainer.json` と `.devcontainer/post_create.sh` を更新し、`make build` で starter に反映してください。既存の dev container には「Dev Containers: Rebuild Container」で変更を適用します。

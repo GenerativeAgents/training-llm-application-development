@@ -10,6 +10,6 @@ npm install --global npm@11.19.0
 # Install Chromium for Playwright
 npx --yes playwright install-deps chromium
 
-# Install Claude Code (same version as training-shared common-setup.sh)
+# Install Claude Code (pinned version)
 curl -fsSL https://claude.ai/install.sh | bash -s -- 2.1.220
 echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
