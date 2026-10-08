@@ -2,5 +2,7 @@ services:
   app:
     image: mcr.microsoft.com/devcontainers/base:bookworm
     command: sleep infinity
+    environment:
+      DISABLE_AUTOUPDATER: "1"
     volumes:
       - ..:/workspaces/workspace:cached
