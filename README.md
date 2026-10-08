@@ -17,7 +17,7 @@ AIエージェント開発者養成講座で使用するソースコードです
 | `day3-starter/` | day3 の受講者配布用 starter（**自動生成**）。直接編集しないこと。                    |
 | `setup/`        | ハンズオン環境の構築（AWS EC2 + code-server）。詳細は `setup/README.md` を参照。     |
 | `docs/`         | 講座準備用ドキュメントと API キー取得ガイド（Cohere、Weave、Azure OpenAI）。 |
-| `scripts/`      | starter 生成用スクリプト。                       |
+| `scripts/`      | starter 生成・Release操作用スクリプト。                       |
 
 ## starter の生成
 
@@ -40,9 +40,14 @@ make build   # day2/ と day3/ から両方の starter を再生成する
 講師が3種類のインデックスを事前生成し、教材ソースと同じ `yyyy-mm-dd` のGitHub Releaseに添付します。
 受講者は取得スクリプトで配置できます。[講師向けの配布手順](docs/rag_indexes.md)と[受講者向けの取得手順](day2/README.md)を参照してください。
 
+**インデックスの生成とReleaseの公開は別の操作です。**
+先に `day2/scripts/rag_indexes/create.sh` で生成・検索検証・梱包を行い、配布先での動作を確認してから `scripts/release/create.sh` で公開します。
+`scripts/release/create.sh` は生成済みの配布物（既定: `dist/advanced-rag-indexes.tar.gz`）を使い、インデックスを生成しません。
+生成に失敗しても以前の配布物が残るため、そのまま公開操作へ進まないでください。
+
 | スクリプト | 用途 |
 | --- | --- |
 | `day2/scripts/rag_indexes/create.sh` | 生成・検索検証・梱包 |
 | `day2/scripts/rag_indexes/download.sh` | Releaseまたはローカル配布物から復元 |
-| `scripts/release/create.sh` | 日付タグ・Release作成と配布物添付、Draftの公開 |
+| `scripts/release/create.sh` | 日付タグ・Release作成と生成済み配布物の添付、Draftの公開 |
 | `scripts/release/delete.sh` | 指定日付のRelease・添付・リモートタグ削除 |
