@@ -49,7 +49,7 @@ starterや別のクリーンな受講環境に配置し、ハンズオンのア�
   --destination day2-starter/data/lancedb
 
 # Draftを作成して添付。まだ一般公開されない
-./day2/scripts/release/create.sh --version 2026-10-08 --draft
+./scripts/release/create.sh --version 2026-10-08 --draft
 
 # Draftはアクセス権のある講師がghで取得し、同じ復元処理を試す
 mkdir -p tmp/release-test
@@ -65,7 +65,7 @@ gh release download 2026-10-08 \
 検証した配布物を使い、1コマンドで日付タグ・教材Release・添付を作成します。
 
 ```bash
-./day2/scripts/release/create.sh --version 2026-10-08
+./scripts/release/create.sh --version 2026-10-08
 ```
 
 タグは配布物に記録した生成元コミットを指します。GitHubにpush済みのコミットが必要です。
@@ -81,7 +81,7 @@ gh release download 2026-10-08 \
 ## 検証用Releaseの削除
 
 ```bash
-./day2/scripts/release/delete.sh --version 2026-10-08
+./scripts/release/delete.sh --version 2026-10-08
 ```
 
 指定日付のRelease・全添付・リモートのGitタグを削除します。ソースコミットとローカルのタグは残ります。
@@ -91,19 +91,19 @@ gh release download 2026-10-08 \
 
 ## スクリプトの保守
 
-配布用の処理を `day2/scripts/` 以下にまとめています。
+教材全体のRelease操作はrepo rootの `scripts/release/`、インデックスの生成・取得・検証は `day2/scripts/rag_indexes/` に配置しています。
 
 ```text
-day2/scripts/
-├── rag_indexes/
-│   ├── create.sh
-│   ├── download.sh
-│   ├── cli.py
-│   ├── validate.py
-│   └── tests/
-└── release/
-    ├── create.sh
-    └── delete.sh
+scripts/release/
+├── create.sh
+└── delete.sh
+
+day2/scripts/rag_indexes/
+├── create.sh
+├── download.sh
+├── cli.py
+├── validate.py
+└── tests/
 ```
 
 4つの `.sh` は共通処理の `day2/scripts/rag_indexes/cli.py` を呼びます。取得・復元・Release操作にはPython標準ライブラリだけを使い、

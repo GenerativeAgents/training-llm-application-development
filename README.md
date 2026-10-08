@@ -44,5 +44,5 @@ make build   # day2/ と day3/ から両方の starter を再生成する
 | --- | --- |
 | `day2/scripts/rag_indexes/create.sh` | 生成・検索検証・梱包 |
 | `day2/scripts/rag_indexes/download.sh` | Releaseまたはローカル配布物から復元 |
-| `day2/scripts/release/create.sh` | 日付タグ・Release作成と配布物添付、Draftの公開 |
-| `day2/scripts/release/delete.sh` | 指定日付のRelease・添付・リモートタグ削除 |
+| `scripts/release/create.sh` | 日付タグ・Release作成と配布物添付、Draftの公開 |
+| `scripts/release/delete.sh` | 指定日付のRelease・添付・リモートタグ削除 |
