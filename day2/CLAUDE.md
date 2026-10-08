@@ -65,7 +65,7 @@ Jupyter notebooks for interactive teaching. Executed as tests via `make test`.
 - `part2_1_rag_basics` - RAG basics with Chroma and Weave
 - `partX_1_langgraph_basics` - LangGraph basics (parked, not in the current course flow)
 
-Notes on models: all code uses `gpt-5.6-luna`. With the Chat Completions API, GPT-5.6 / GPT-6 accept function tools only with `reasoning_effort="none"`.
+Notes on models: part1 / partX (pages, notebooks, `app/agent_loop.py`) use `gpt-5.6-luna`; part2 / part3 and `app/advanced_rag/` (answer, LLM rerank, judge, vision extractor) use `gpt-6-luna`, with `text-embedding-3-small` for embeddings. With the Chat Completions API, GPT-5.6 / GPT-6 accept function tools only with `reasoning_effort="none"`.
 
 ## Key Technical Details
 
