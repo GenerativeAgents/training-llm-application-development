@@ -137,6 +137,9 @@ def sections_vision(path: Path) -> list[Section]:
 
     extra = {name: "\n\n# テキスト行\n" + "\n".join(f"L{n} {pixel(box)} {text}" for n, (box, (text, _)) in enumerate(lines, 1))
              for name, lines in boxed.items() if name in images}
+    for name, lines in boxed.items():
+        if name in extra and not lines:
+            extra[name] += "テキスト行はありません。画像内の文字は別途抽出されていないため、文字の内容も説明に含めてください。after は 0 にしてください。"
     described = vision.describe(path, images, PROMPT, extra=extra, json_mode=True)
     result = []
     for name, lines in boxed.items():

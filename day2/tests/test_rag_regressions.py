@@ -111,7 +111,9 @@ class SlideTest(unittest.TestCase):
                 "Presentation",
                 return_value=SimpleNamespace(slides=[("空", "a"), ("本文あり", "b")]),
             ),
-            patch.object(slides, "render_slides", return_value={}),
+            patch.object(
+                slides, "render_slides", return_value={"空": None, "本文あり": None}
+            ),
             patch.object(slides, "collect_slide"),
             patch.object(slides, "boxed_lines", side_effect=[[], [line]]),
             patch.object(
