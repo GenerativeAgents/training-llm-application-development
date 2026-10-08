@@ -29,7 +29,6 @@ LibreOffice で画像化すると、片端だけ図形に接続された折れ�
 """
 
 import argparse
-from datetime import datetime, timedelta
 import hashlib
 import io
 import math
@@ -37,12 +36,21 @@ import re
 import subprocess
 import sys
 import tempfile
-import zipfile
 import xml.etree.ElementTree as ET
+import zipfile
+from collections.abc import Callable, Iterable, Iterator, Sequence
+from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Any, cast
 
 import openpyxl
+from openpyxl.cell.cell import Cell as ExcelCell
+from openpyxl.cell.cell import MergedCell
+from openpyxl.worksheet.worksheet import Worksheet
 from PIL import Image, ImageChops, ImageDraw, ImageFont
+
+Point = tuple[float, float]
+Box = Sequence[float]  # (x, y, 幅, 高さ)。リストとタプルを受け取る。
 
 NS = {
     "xdr": "http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing",
@@ -171,13 +179,13 @@ def open_image(data: bytes) -> Image.Image:
 class Package:
     """OOXML の zip。関係ファイル(rels)の解決、テーマ色、メディアの取り出し。"""
 
-    def __init__(self, path: Path):
+    def __init__(self, path: Path) -> None:
         self.path = path
         self.z = zipfile.ZipFile(path)
         self.names = set(self.z.namelist())
-        self.theme: dict = {}
+        self.theme: dict[str, str] = {}
 
-    def _rels(self, part: str) -> dict:
+    def _rels(self, part: str) -> dict[str, str]:
         if part not in self.names:
             return {}
         out = {}
@@ -201,13 +209,13 @@ class Package:
                 parts.append(seg)
         return "/".join(parts)
 
-    def _theme_from(self, part: str) -> dict:
+    def _theme_from(self, part: str) -> dict[str, str]:
         if part not in self.names:
             return {}
         t = self.z.read(part).decode()
         return dict(re.findall(r'<a:(dk1|lt1|dk2|lt2|accent\d|hlink|folHlink)>\s*<a:(?:srgbClr val|sysClr val="\w+" lastClr)="(\w+)"', t))
 
-    def media(self, base: str, rels: dict, rid: str) -> bytes | None:
+    def media(self, base: str, rels: dict[str, str], rid: str) -> bytes | None:
         """base(rels を持つパート)から見た相対 Target の画像バイト列。"""
         target = rels.get(rid)
         if not target:
@@ -215,46 +223,47 @@ class Package:
         part = self._resolve(base, target)
         return self.z.read(part) if part in self.names else None
 
-    def color(self, node) -> str | None:
+    def color(self, node: ET.Element | None) -> str | None:
         """solidFill の子(srgbClr / schemeClr)を #RRGGBB に。lumMod / lumOff(明るさの補正)はどちらにも掛ける。"""
         if node is None:
             return None
         clr, hexv = node.find("a:srgbClr", NS), None
         if clr is not None:
-            hexv = clr.get("val")
+            hexv = cast(str, clr.get("val"))
         elif node.find("a:prstClr", NS) is not None:
-            clr = node.find("a:prstClr", NS)
-            hexv = PRESET_COLORS.get(clr.get("val"))
+            clr = cast(ET.Element, node.find("a:prstClr", NS))
+            hexv = PRESET_COLORS.get(cast(str, clr.get("val")))
         elif node.find("a:sysClr", NS) is not None:
-            clr = node.find("a:sysClr", NS)
+            clr = cast(ET.Element, node.find("a:sysClr", NS))
             hexv = clr.get("lastClr")
         else:
             clr = node.find("a:schemeClr", NS)
             if clr is not None:
-                v = clr.get("val")
+                v = cast(str, clr.get("val"))
                 hexv = self.theme.get(THEME_ALIAS.get(v, v))
         if not hexv:
             return None
+        clr = cast(ET.Element, clr)
         rgb = tuple(int(hexv[i : i + 2], 16) for i in (0, 2, 4))
         # lumMod / lumOff で明るさだけ近似
         mod = clr.find("a:lumMod", NS)
         off = clr.find("a:lumOff", NS)
         if mod is not None or off is not None:
-            m = int(mod.get("val")) / 100000 if mod is not None else 1.0
-            o = int(off.get("val")) / 100000 if off is not None else 0.0
+            m = int(cast(str, mod.get("val"))) / 100000 if mod is not None else 1.0
+            o = int(cast(str, off.get("val"))) / 100000 if off is not None else 0.0
             rgb = tuple(min(255, int(c * m + 255 * o)) for c in rgb)
         return "#%02x%02x%02x" % rgb
 
 
 class Workbook(Package):
-    def __init__(self, path: Path):
+    def __init__(self, path: Path) -> None:
         super().__init__(path)
         wb = self.z.read("xl/workbook.xml").decode()
         rels = self._rels("xl/_rels/workbook.xml.rels")
         self.sheets = {}  # name -> worksheet part path
         for m in re.finditer(r"<sheet [^>]*/>", wb):
-            name = re.search(r'name="([^"]+)"', m.group(0)).group(1).replace("&amp;", "&")
-            rid = re.search(r'r:id="([^"]+)"', m.group(0)).group(1)
+            name = cast(re.Match[str], re.search(r'name="([^"]+)"', m.group(0))).group(1).replace("&amp;", "&")
+            rid = cast(re.Match[str], re.search(r'r:id="([^"]+)"', m.group(0))).group(1)
             self.sheets[name] = "xl/" + rels[rid].lstrip("/").removeprefix("xl/")
         self.theme = self._theme_from("xl/theme/theme1.xml")
         self.mdw = self._max_digit_width()
@@ -270,7 +279,7 @@ class Workbook(Package):
         pt = float(sz.group(1)) if sz else 11
         return max(5, round(pt * 96 / 72 * 0.5))
 
-    def drawing_for(self, sheet: str):
+    def drawing_for(self, sheet: str) -> tuple[ET.Element, str, dict[str, str], str] | None:
         """(drawing の ElementTree root, drawing のパート名, drawing の rels, worksheet XML)。drawing が無ければ None。"""
         part = self.sheets[sheet]
         rels = self._rels(f"xl/worksheets/_rels/{Path(part).name}.rels")
@@ -284,7 +293,7 @@ class Workbook(Package):
         drels = self._rels(f"xl/drawings/_rels/{Path(drawing).name}.rels")
         return ET.fromstring(self.z.read(drawing)), drawing, drels, ws_xml
 
-    def checkbox_states(self, ws_xml: str, part: str) -> dict:
+    def checkbox_states(self, ws_xml: str, part: str) -> dict[str, str]:
         """コントロール名 -> 'Checked' / 'Mixed' / ''(未チェック)"""
         rels = self._rels(f"xl/worksheets/_rels/{Path(part).name}.rels")
         out = {}
@@ -309,7 +318,7 @@ SKIP_PLACEHOLDERS = {"dt", "ftr", "sldNum"}  # 日付・フッタ・スライド
 
 
 class Presentation(Package):
-    def __init__(self, path: Path):
+    def __init__(self, path: Path) -> None:
         super().__init__(path)
         pres = self.z.read("ppt/presentation.xml").decode()
         rels = self._rels("ppt/_rels/presentation.xml.rels")
@@ -330,7 +339,7 @@ class Presentation(Package):
                 return self._resolve(part, target)
         return None
 
-    def placeholder_xfrm(self, part: str, ph) -> dict | None:
+    def placeholder_xfrm(self, part: str, ph: ET.Element) -> dict[str, Any] | None:
         """xfrm を持たないプレースホルダの位置を、レイアウト → マスターの同じプレースホルダから継ぐ。"""
         idx, typ = ph.get("idx"), ph.get("type") or "body"
         layout = self._related(part, "slideLayout")
@@ -357,7 +366,7 @@ class Presentation(Package):
 # ---------------------------------------------------------------- geometry helpers
 
 
-def cell_grid(ws, mdw: int = 7):
+def cell_grid(ws: Worksheet, mdw: int = 7) -> tuple[list[float], list[float]]:
     """列・行の開始位置(px, 96dpi)。
 
     openpyxl は <col min max> の範囲を先頭の列にしか持たず、他の列を引くと既定値(13 文字幅)を
@@ -382,97 +391,98 @@ def cell_grid(ws, mdw: int = 7):
     return cols, rows
 
 
-def anchor_box(a, cols, rows):
-    def pt(node):
-        g = lambda k: int(node.find(f"xdr:{k}", NS).text)
+def anchor_box(a: ET.Element, cols: list[float], rows: list[float]) -> list[float]:
+    def pt(node: ET.Element) -> Point:
+        g: Callable[[str], int] = lambda k: int(cast(str, cast(ET.Element, node.find(f"xdr:{k}", NS)).text))
         return cols[min(g("col"), len(cols) - 1)] + g("colOff") / EMU_PX, rows[min(g("row"), len(rows) - 1)] + g("rowOff") / EMU_PX
 
-    x0, y0 = pt(a.find("xdr:from", NS))
+    x0, y0 = pt(cast(ET.Element, a.find("xdr:from", NS)))
     to = a.find("xdr:to", NS)
     if to is not None:
         x1, y1 = pt(to)
     else:
-        ext = a.find("xdr:ext", NS)
-        x1, y1 = x0 + int(ext.get("cx")) / EMU_PX, y0 + int(ext.get("cy")) / EMU_PX
+        ext = cast(ET.Element, a.find("xdr:ext", NS))
+        x1, y1 = x0 + int(cast(str, ext.get("cx"))) / EMU_PX, y0 + int(cast(str, ext.get("cy"))) / EMU_PX
     return [x0, y0, x1 - x0, y1 - y0]
 
 
-def xfrm(el):
+def xfrm(el: ET.Element | None) -> dict[str, Any] | None:
     return xfrm_node(el.find("a:xfrm", NS)) if el is not None else None
 
 
-def xfrm_node(x):
+def xfrm_node(x: ET.Element | None) -> dict[str, Any] | None:
     """xfrm 要素(a:xfrm、または graphicFrame 直下の xdr:xfrm / p:xfrm)を dict に。"""
     if x is None:
         return None
     off, ext = x.find("a:off", NS), x.find("a:ext", NS)
     if off is None or ext is None:
         return None
-    d = dict(x=int(off.get("x")), y=int(off.get("y")), cx=int(ext.get("cx")), cy=int(ext.get("cy")),
+    d: dict[str, Any] = dict(x=int(cast(str, off.get("x"))), y=int(cast(str, off.get("y"))), cx=int(cast(str, ext.get("cx"))), cy=int(cast(str, ext.get("cy"))),
              flipH=x.get("flipH") == "1", flipV=x.get("flipV") == "1", rot=int(x.get("rot") or 0) / 60000)
     cho, che = x.find("a:chOff", NS), x.find("a:chExt", NS)
     if cho is not None:
-        d["ch"] = (int(cho.get("x")), int(cho.get("y")), int(che.get("cx")), int(che.get("cy")))
+        d["ch"] = (int(cast(str, cho.get("x"))), int(cast(str, cho.get("y"))), int(cast(str, cast(ET.Element, che).get("cx"))), int(cast(str, cast(ET.Element, che).get("cy"))))
     return d
 
 
-def txt(el) -> str:
+def txt(el: ET.Element) -> str:
     """図形の文字。段落(a:p)ごとに改行する。"""
     paras = ["".join(t.text or "" for t in p.iter("{%s}t" % NS["a"])) for p in el.iter("{%s}p" % NS["a"])]
     return "\n".join(paras).strip("\n")
 
 
-def font_scale(el) -> float:
+def font_scale(el: ET.Element) -> float:
     fit = el.find(".//a:bodyPr/a:normAutofit", NS)  # PowerPoint の「はみ出す場合に自動調整」で縮んだ文字
-    return int(fit.get("fontScale")) / 100000 if fit is not None and fit.get("fontScale") else 1.0
+    return int(cast(str, fit.get("fontScale"))) / 100000 if fit is not None and fit.get("fontScale") else 1.0
 
 
-def text_size_pt(el) -> float:
-    szs = [int(r.get("sz")) for r in el.iter("{%s}rPr" % NS["a"]) if r.get("sz")]
+def text_size_pt(el: ET.Element) -> float:
+    szs = [int(cast(str, r.get("sz"))) for r in el.iter("{%s}rPr" % NS["a"]) if r.get("sz")]
     return (szs[0] / 100 if szs else DEFAULT_PT) * font_scale(el)
 
 
-def paragraphs(el) -> list[tuple[str, float, float | None]]:
+def paragraphs(el: ET.Element) -> list[tuple[str, float, float | None]]:
     """段落ごとの (文字, pt, 行送り pt または None)。pt は段落内の最初の run の sz(無ければ endParaRPr、それも無ければ直前の段落)。
 
     ポンチ絵は 1 つの箱の中で見出し行だけ大きい、行送りを固定(lnSpc の spcPts)して詰める、が普通なので段落単位で持つ。
     """
     scale = font_scale(el)
-    out, pt = [], DEFAULT_PT
+    out: list[tuple[str, float, float | None]] = []
+    pt: float = DEFAULT_PT
     for p in el.iter("{%s}p" % NS["a"]):
         text = "".join(t.text or "" for t in p.iter("{%s}t" % NS["a"]))
-        szs = [int(r.get("sz")) for tag in ("rPr", "endParaRPr") for r in p.iter("{%s}%s" % (NS["a"], tag)) if r.get("sz")]
+        szs = [int(cast(str, r.get("sz"))) for tag in ("rPr", "endParaRPr") for r in p.iter("{%s}%s" % (NS["a"], tag)) if r.get("sz")]
         if szs:
             pt = szs[0] / 100
         lh = None
         pts_ = p.find("a:pPr/a:lnSpc/a:spcPts", NS)
         pct = p.find("a:pPr/a:lnSpc/a:spcPct", NS)
         if pts_ is not None:
-            lh = int(pts_.get("val")) / 100
+            lh = int(cast(str, pts_.get("val"))) / 100
         elif pct is not None:
-            lh = pt * 1.2 * int(pct.get("val")) / 100000
+            lh = pt * 1.2 * int(cast(str, pct.get("val"))) / 100000
         out.append((text, pt * scale, lh * scale if lh else None))
     return out
 
 
-def text_layout(el) -> tuple[str, str, bool, bool, tuple[float, float]]:
+def text_layout(el: ET.Element) -> tuple[str, str, bool, bool, tuple[float, float]]:
     """(横位置, 縦位置, 折り返すか, 縦書きか, (左右の余白 px, 上下の余白 px))。
 
     指定が無ければ左上・折り返し(PowerPoint のテキストボックスの既定)。余白は指定があるときだけ使う。
     """
     body = el.find(".//a:bodyPr", NS)
-    valign = {"ctr": "middle", "b": "bottom"}.get(body.get("anchor") if body is not None else None, "top")
+    valign = {"ctr": "middle", "b": "bottom"}.get(cast(str, body.get("anchor") if body is not None else None), "top")
     wrap = body is None or body.get("wrap") != "none"
     vert = body is not None and (body.get("vert") or "horz") != "horz"
     ppr = el.find(".//a:p/a:pPr", NS)
-    align = {"ctr": "center", "r": "right"}.get(ppr.get("algn") if ppr is not None else None, "left")
+    align = {"ctr": "center", "r": "right"}.get(cast(str, ppr.get("algn") if ppr is not None else None), "left")
     ins = (2.0, 1.0)
     if body is not None and (body.get("lIns") or body.get("tIns")):
         ins = (int(body.get("lIns") or 91440) / EMU_PX, int(body.get("tIns") or 45720) / EMU_PX)
     return align, valign, wrap, vert, ins
 
 
-def text_fields(el) -> dict:
+def text_fields(el: ET.Element) -> dict[str, Any]:
     """図形(または表のセル)の文字に関する項目。items の要素に混ぜる。"""
     align, valign, wrap, vert, ins = text_layout(el)
     return dict(text=txt(el), pt=text_size_pt(el), paras=paragraphs(el), align=align, valign=valign, wrap=wrap, vert=vert, ins=ins)
@@ -481,7 +491,7 @@ def text_fields(el) -> dict:
 # ---------------------------------------------------------------- charts
 
 
-def _chart_text(el) -> str:
+def _chart_text(el: ET.Element | None) -> str:
     """c:tx / c:title の文字(リッチテキストの a:t、またはセル参照のキャッシュ c:v)。"""
     if el is None:
         return ""
@@ -516,13 +526,13 @@ def format_number(text: str, code: str | None) -> str:
     frac = re.search(r"\.([0#?]+)", bare)
     digits = len(frac.group(1)) if frac else 0
     number = f"{v:,.{digits}f}" if "," in bare.split(".")[0] else f"{v:.{digits}f}"
-    first = re.search(r"[0#?]", code).start()
+    first = cast(re.Match[str], re.search(r"[0#?]", code)).start()
     prefix = "".join(re.findall(r'"([^"]*)"', code[:first]))
     suffix = "".join(re.findall(r'"([^"]*)"', code[first:]))
     return prefix + number + ("%" if "%" in bare else "") + suffix
 
 
-def _chart_points(el) -> dict[int, str]:
+def _chart_points(el: ET.Element | None) -> dict[int, str]:
     """c:cat / c:val / c:xVal / c:yVal のキャッシュ値を 点の番号 → 文字 で。多段の項目(multiLvl)は段を / でつなぐ。
 
     数値のキャッシュ(c:numCache)は、表示形式(キャッシュの c:formatCode、点ごとの formatCode 属性が優先)で整える。
@@ -540,11 +550,11 @@ def _chart_points(el) -> dict[int, str]:
             v = pt.find("c:v", NS)
             if v is not None and v.text is not None:
                 text = format_number(v.text.strip(), pt.get("formatCode") or code) if numeric else v.text.strip()
-                out.setdefault(int(pt.get("idx")), []).append(text)
+                out.setdefault(int(cast(str, pt.get("idx"))), []).append(text)
     return {k: " / ".join(v) for k, v in out.items()}
 
 
-def chart_data(xml: bytes) -> dict | None:
+def chart_data(xml: bytes) -> dict[str, Any] | None:
     """グラフのパート(chartN.xml)から、題・種類・軸の題・系列(名前と (項目, 値) の並び)を取る。値はキャッシュ(c:v)を使う。"""
     root = ET.fromstring(xml)
     chart = root.find("c:chart", NS)
@@ -573,7 +583,7 @@ def chart_data(xml: bytes) -> dict | None:
     return {"title": title, "kinds": list(dict.fromkeys(kinds)), "axes": axes, "series": series}
 
 
-def chart_lines(data: dict) -> list[str]:
+def chart_lines(data: dict[str, Any]) -> list[str]:
     """chart_data をテキストの行にする: `グラフ: 題(種類)`、`軸: …`、系列ごとに `系列名: 項目 値 / 項目 値 …`。
 
     値はグラフの XML のキャッシュ(c:v)から取る。Excel / PowerPoint が保存したファイルには必ずあるが、
@@ -596,7 +606,7 @@ def chart_lines(data: dict) -> list[str]:
 THEME_INDEX = ["lt1", "dk1", "lt2", "dk2", "accent1", "accent2", "accent3", "accent4", "accent5", "accent6"]
 
 
-def cell_fill(cell, theme: dict) -> str | None:
+def cell_fill(cell: ExcelCell | MergedCell, theme: dict[str, str]) -> str | None:
     if not cell.fill or cell.fill.fill_type != "solid":
         return None
     fg = cell.fill.fgColor
@@ -620,9 +630,9 @@ def cell_fill(cell, theme: dict) -> str | None:
     return "#%02x%02x%02x" % (r, g, b)
 
 
-def cell_items(ws, cols, rows, theme: dict) -> list[dict]:
+def cell_items(ws: Worksheet, cols: list[float], rows: list[float], theme: dict[str, str]) -> list[dict[str, Any]]:
     """値のあるセル(結合セルはその範囲)を、位置・文字列・塗り色で返す。"""
-    merged = {}
+    merged: dict[tuple[int, int], tuple[int, int] | None] = {}
     for rng in ws.merged_cells.ranges:
         merged[(rng.min_row, rng.min_col)] = (rng.max_row, rng.max_col)
         for r in range(rng.min_row, rng.max_row + 1):
@@ -659,17 +669,17 @@ class Collector:
     checks: xlsx のチェックボックス状態。inherit: xfrm の無い図形の位置を補う関数(pptx のプレースホルダ用)。
     """
 
-    def __init__(self, ns: str, pkg: Package, base: str, rels: dict, checks: dict | None = None, inherit=None):
+    def __init__(self, ns: str, pkg: Package, base: str, rels: dict[str, str], checks: dict[str, str] | None = None, inherit: Callable[[ET.Element], dict[str, Any] | None] | None=None) -> None:
         self.ns, self.pkg, self.base, self.rels = ns, pkg, base, rels
         self.checks = checks or {}
         self.inherit = inherit
-        self.items: list[dict] = []
+        self.items: list[dict[str, Any]] = []
 
     def q(self, tag: str) -> str:
         return f"{self.ns}:{tag}"
 
-    def emit(self, el, kind, box, f):
-        cnv = el.find(f"./*/{self.q('cNvPr')}", NS)
+    def emit(self, el: ET.Element, kind: str, box: Box, f: dict[str, Any] | None) -> None:
+        cnv = cast(ET.Element, el.find(f"./*/{self.q('cNvPr')}", NS))
         sppr = el.find(self.q("spPr"), NS)
         it = dict(id=cnv.get("id"), name=cnv.get("name") or "", kind=kind, box=box,
                   flipH=f["flipH"] if f else False, flipV=f["flipV"] if f else False, rot=f["rot"] if f else 0,
@@ -729,19 +739,19 @@ class Collector:
         if kind == "pic":
             blip = el.find(".//a:blip", NS)
             if blip is not None:
-                it["image"] = self.pkg.media(self.base, self.rels, blip.get("{%s}embed" % NS["r"]))
+                it["image"] = self.pkg.media(self.base, self.rels, cast(str, blip.get("{%s}embed" % NS["r"])))
         if it["name"] in self.checks:
             it["check"] = self.checks[it["name"]]
         self.items.append(it)
 
-    def emit_table(self, frame, box):
+    def emit_table(self, frame: ET.Element, box: Box) -> None:
         """graphicFrame の表(a:tbl)。セルを矩形 + 文字にする。結合セル(gridSpan / rowSpan)は左上のセルに広げる。"""
         tbl = frame.find(".//a:tbl", NS)
         if tbl is None:
             return
-        widths = [int(c.get("w")) for c in tbl.findall("a:tblGrid/a:gridCol", NS)]
+        widths = [int(cast(str, c.get("w"))) for c in tbl.findall("a:tblGrid/a:gridCol", NS)]
         rows_el = tbl.findall("a:tr", NS)
-        heights = [int(r.get("h")) for r in rows_el]
+        heights = [int(cast(str, r.get("h"))) for r in rows_el]
         # 表の枠(graphicFrame の xfrm)に合わせて列幅・行高を比例させる
         sx = box[2] / sum(widths) if sum(widths) else 1 / EMU_PX
         sy = box[3] / sum(heights) if sum(heights) else 1 / EMU_PX
@@ -751,7 +761,7 @@ class Collector:
         ys = [box[1]]
         for h in heights:
             ys.append(ys[-1] + h * sy)
-        fid = frame.find(f"./*/{self.q('cNvPr')}", NS).get("id")
+        fid = cast(ET.Element, frame.find(f"./*/{self.q('cNvPr')}", NS)).get("id")
         for r, tr in enumerate(rows_el):
             c = 0
             for tc in tr.findall("a:tc", NS):
@@ -765,30 +775,30 @@ class Collector:
                 pr = tc.find("a:tcPr", NS)
                 fill = self.pkg.color(pr.find("a:solidFill", NS)) if pr is not None else None
                 tf = text_fields(tc)
-                tf["valign"] = {"ctr": "middle", "b": "bottom"}.get(pr.get("anchor") if pr is not None else None, "top")  # 表は tcPr が縦位置を持つ
+                tf["valign"] = {"ctr": "middle", "b": "bottom"}.get(cast(str, pr.get("anchor") if pr is not None else None), "top")  # 表は tcPr が縦位置を持つ
                 self.items.append(dict(id=f"{fid}-{r}-{c}", name="", kind="sp", box=[xs[c], ys[r], xs[c1] - xs[c], ys[r1] - ys[r]],
                                        flipH=False, flipV=False, rot=0, prst="rect", cust=None, fill=fill, line=True, lncolor="black",
                                        dash=False, head=False, tail=False, adj={}, stCxn=None, endCxn=None, image=None, check=None, **tf))
                 c += span
 
-    def emit_chart(self, frame, box):
+    def emit_chart(self, frame: ET.Element, box: Box) -> None:
         """graphicFrame のグラフ(c:chart)。枠と「グラフ: 題」だけの図形にし、値は chart に持たせる(chart_lines でテキストにする)。"""
         data_el = frame.find(".//a:graphicData", NS)
         ref = frame.find(".//c:chart", NS)
         if data_el is None or data_el.get("uri") != CHART_URI or ref is None:
             return
-        xml = self.pkg.media(self.base, self.rels, ref.get("{%s}id" % NS["r"]))
+        xml = self.pkg.media(self.base, self.rels, cast(str, ref.get("{%s}id" % NS["r"])))
         data = chart_data(xml) if xml else None
         if data is None:
             return
-        fid = frame.find(f"./*/{self.q('cNvPr')}", NS).get("id")
+        fid = cast(ET.Element, frame.find(f"./*/{self.q('cNvPr')}", NS)).get("id")
         label = chart_lines(data)[0]
         self.items.append(dict(id=fid, name="", kind="chart", box=box, flipH=False, flipV=False, rot=0, prst="rect", cust=None,
                                fill="#f4f4f4", line=True, lncolor="#808080", dash=False, head=False, tail=False, adj={},
                                stCxn=None, endCxn=None, image=None, check=None, chart=data, text=label, pt=12.0,
                                paras=[(label, 12.0, None)], align="center", valign="middle", wrap=True, vert=False, ins=(2.0, 1.0)))
 
-    def emit_ole(self, frame, box):
+    def emit_ole(self, frame: ET.Element, box: Box) -> None:
         """OLE オブジェクト(Excel のグラフなどを貼り付けたもの)。中身は描けないので、代わりに置かれている画像を枠いっぱいに貼る。
 
         その画像は mc:Fallback の中の p:pic にあり、walk は Fallback を飛ばすのでここで拾う。形式は EMF / WMF のことが多い。
@@ -797,17 +807,19 @@ class Collector:
         if data_el is None or not (data_el.get("uri") or "").endswith("/ole"):
             return
         blip = frame.find(".//a:blip", NS)
-        image = self.pkg.media(self.base, self.rels, blip.get("{%s}embed" % NS["r"])) if blip is not None else None
+        image = self.pkg.media(self.base, self.rels, cast(str, blip.get("{%s}embed" % NS["r"]))) if blip is not None else None
         if not image:
             return
-        fid = frame.find(f"./*/{self.q('cNvPr')}", NS).get("id")
+        fid = cast(ET.Element, frame.find(f"./*/{self.q('cNvPr')}", NS)).get("id")
         self.items.append(dict(id=fid, name="", kind="pic", box=box, flipH=False, flipV=False, rot=0, prst="rect", cust=None,
                                fill=None, line=False, lncolor="black", dash=False, head=False, tail=False, adj={},
                                stCxn=None, endCxn=None, image=image, check=None, **text_fields(frame)))
 
-    def place(self, f, box, chbox):
+    def place(self, f: dict[str, Any] | None, box: Box | None, chbox: Box | None) -> list[float] | None:
         """図形の絶対枠 [x, y, w, h](px)。box: 親から与えられた枠(xlsx のアンカー)。chbox: グループの子座標系。"""
         if chbox is not None:
+            box = cast(Box, box)
+            f = cast(dict[str, Any], f)
             chx, chy, chcx, chcy = chbox
             sx = box[2] / chcx if chcx else 1
             sy = box[3] / chcy if chcy else 1
@@ -823,7 +835,7 @@ class Collector:
             return None
         return [f["x"] / EMU_PX, f["y"] / EMU_PX, f["cx"] / EMU_PX, f["cy"] / EMU_PX]  # pptx: xfrm が絶対座標
 
-    def walk(self, el, box, chbox):
+    def walk(self, el: ET.Element, box: Box | None, chbox: Box | None) -> None:
         """box: この要素群の絶対枠(pptx のトップレベルは None)。chbox: 子座標系の (x, y, cx, cy)。None なら子は自身の枠をそのまま使う。"""
         for ch in el:
             tag = ch.tag.split("}")[1]
@@ -856,7 +868,7 @@ class Collector:
                     self.emit(ch, tag, b, f)
 
 
-def collect(wb: Workbook, sheet: str):
+def collect(wb: Workbook, sheet: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]]] | None:
     parts = wb.drawing_for(sheet)
     if parts is None:
         return None
@@ -864,7 +876,7 @@ def collect(wb: Workbook, sheet: str):
     cols, rows = cell_grid(wb.wb[sheet], wb.mdw)
     col = Collector("xdr", wb, drawing, drels, checks=wb.checkbox_states(ws_xml, wb.sheets[sheet]))
 
-    def anchors(el):
+    def anchors(el: ET.Element) -> Iterator[ET.Element]:
         for a in el:
             tag = a.tag.split("}")[1]
             if tag.endswith("Anchor"):
@@ -879,18 +891,18 @@ def collect(wb: Workbook, sheet: str):
     return col.items, cell_items(wb.wb[sheet], cols, rows, wb.theme)
 
 
-def collect_slide(pres: Presentation, part: str) -> list[dict]:
+def collect_slide(pres: Presentation, part: str) -> list[dict[str, Any]]:
     root = ET.fromstring(pres.z.read(part))
     rels = pres._rels(f"{Path(part).parent}/_rels/{Path(part).name}.rels")
     col = Collector("p", pres, part, rels, inherit=lambda ph: pres.placeholder_xfrm(part, ph))
-    col.walk(root.find("p:cSld/p:spTree", NS), None, None)
+    col.walk(cast(ET.Element, root.find("p:cSld/p:spTree", NS)), None, None)
     return col.items
 
 
 # ---------------------------------------------------------------- connectors
 
 
-def site_point(it, idx):
+def site_point(it: dict[str, Any], idx: int) -> tuple[Point, str]:
     """接続点番号 -> (点, 外向きの方向)。rect 系は 0=上 1=左 2=下 3=右、ellipse は 8 方位。"""
     x, y, w, h = it["box"]
     cx, cy = x + w / 2, y + h / 2
@@ -907,7 +919,7 @@ def site_point(it, idx):
     return [((cx, y), "up"), ((x, cy), "left"), ((cx, y + h), "down"), ((x + w, cy), "right")][idx % 4]
 
 
-def free_ends(it):
+def free_ends(it: dict[str, Any]) -> tuple[Point, Point]:
     """flip と rot を反映した始点・終点。"""
     x, y, w, h = it["box"]
     x0, x1 = (x + w, x) if it["flipH"] else (x, x + w)
@@ -916,7 +928,7 @@ def free_ends(it):
     return p0, p1
 
 
-def connector_path(it, by_id):
+def connector_path(it: dict[str, Any], by_id: dict[str, dict[str, Any]]) -> list[Point]:
     """コネクタの折れ点列。"""
     p0, p1 = free_ends(it)
     d0 = d1 = None
@@ -932,7 +944,7 @@ def connector_path(it, by_id):
     return routed_bent(p0, d0, p1, d1)
 
 
-def preset_bent(prst, it):
+def preset_bent(prst: str, it: dict[str, Any]) -> list[Point]:
     """接続情報なし: 枠内にプリセットどおり(2 は L、3 は Z、4 は 4 折れ)。flip と rot を反映する。"""
     x, y, w, h = it["box"]
     x0, x1 = (x + w, x) if it["flipH"] else (x, x + w)
@@ -950,16 +962,16 @@ def preset_bent(prst, it):
     return rotate_pts(pts, it["box"], it["rot"])
 
 
-def _step(p, d, dist):
+def _step(p: Point, d: str, dist: float) -> Point:
     x, y = p
     return {"up": (x, y - dist), "down": (x, y + dist), "left": (x - dist, y), "right": (x + dist, y)}[d]
 
 
-def _vertical(d):
+def _vertical(d: str) -> bool:
     return d in ("up", "down")
 
 
-def routed_bent(p0, d0, p1, d1):
+def routed_bent(p0: Point, d0: str | None, p1: Point, d1: str | None) -> list[Point]:
     """接続点の向きから経路を組む。片側だけ接続されている場合は、その向きに出てから相手へ折れる。"""
     if d0 is None:
         pts = routed_bent(p1, d1, p0, None)
@@ -994,18 +1006,18 @@ def routed_bent(p0, d0, p1, d1):
 
 
 class Canvas:
-    def __init__(self, w, h, scale: float = SCALE):
+    def __init__(self, w: float, h: float, scale: float = SCALE) -> None:
         self.scale = scale  # 描画倍率。図形の座標(px, 96dpi)にこれを掛けて画素にする
         self.im = Image.new("RGB", (int(w * scale) + 1, int(h * scale) + 1), "white")
         self.d = ImageDraw.Draw(self.im)
 
-    def s(self, v):
+    def s(self, v: float) -> float:
         return v * self.scale
 
-    def pts(self, seq):
+    def pts(self, seq: Iterable[Point]) -> list[Point]:
         return [(self.s(x), self.s(y)) for x, y in seq]
 
-    def polyline(self, seq, dash=False, width=1, color="black"):
+    def polyline(self, seq: Iterable[Point], dash: bool=False, width: float=1, color: str="black") -> None:
         seq = self.pts(seq)
         if not dash:
             self.d.line(seq, fill=color, width=max(1, int(width * self.scale)))
@@ -1017,7 +1029,7 @@ class Canvas:
                 t0, t1 = i / n, min(1, (i + 1) / n)
                 self.d.line([(x0 + (x1 - x0) * t0, y0 + (y1 - y0) * t0), (x0 + (x1 - x0) * t1, y0 + (y1 - y0) * t1)], fill=color, width=max(1, int(width * self.scale)))
 
-    def arrowhead(self, tip, frm, size=7, color="black"):
+    def arrowhead(self, tip: Point, frm: Point, size: float=7, color: str="black") -> None:
         tx, ty, fx, fy = self.s(tip[0]), self.s(tip[1]), self.s(frm[0]), self.s(frm[1])
         if (tx, ty) == (fx, fy):
             return
@@ -1027,8 +1039,8 @@ class Canvas:
         b = ang - math.radians(150)
         self.d.polygon([(tx, ty), (tx + L * math.cos(a), ty + L * math.sin(a)), (tx + L * math.cos(b), ty + L * math.sin(b))], fill=color)
 
-    def text_in_box(self, text, box, pt, align="center", color="black", valign="middle", wrap=True,
-                    paras=None, vert=False, ins=(2.0, 1.0)):
+    def text_in_box(self, text: str, box: Box, pt: float, align: str="center", color: str="black", valign: str="middle", wrap: bool=True,
+                    paras: list[tuple[str, float, float | None]] | None=None, vert: bool=False, ins: Point=(2.0, 1.0)) -> None:
         """paras: 段落ごとの (文字, pt, 行送り pt or None)。None なら text を pt で。vert: 縦書き(1 文字 1 行で積む)。"""
         if not text:
             return
@@ -1067,7 +1079,7 @@ class Canvas:
             ty += lh
 
 
-def rotate_pts(seq, box, rot):
+def rotate_pts(seq: list[Point], box: Box, rot: float) -> list[Point]:
     if not rot:
         return seq
     x, y, w, h = box
@@ -1080,7 +1092,7 @@ def rotate_pts(seq, box, rot):
     return out
 
 
-def shape_outline(it):
+def shape_outline(it: dict[str, Any]) -> list[Point] | None:
     """プリセット図形の輪郭(多角形)。曲線は折れ線で近似。None なら矩形。"""
     x, y, w, h = it["box"]
     p = it["prst"]
@@ -1116,7 +1128,7 @@ def shape_outline(it):
     return None
 
 
-def cust_outline(it):
+def cust_outline(it: dict[str, Any]) -> list[Point] | None:
     x, y, w, h = it["box"]
     path = it["cust"].find("a:pathLst/a:path", NS)
     if path is None:
@@ -1125,11 +1137,11 @@ def cust_outline(it):
     pts = []
     for node in path:
         for pt in node.iter("{%s}pt" % NS["a"]):
-            pts.append((x + int(pt.get("x")) / pw * w, y + int(pt.get("y")) / ph * h))
+            pts.append((x + int(cast(str, pt.get("x"))) / pw * w, y + int(cast(str, pt.get("y"))) / ph * h))
     return pts or None
 
 
-def draw_shape(c: Canvas, it):
+def draw_shape(c: Canvas, it: dict[str, Any]) -> None:
     x, y, w, h = it["box"]
     p = it["prst"] or ""
     if it["check"] is not None:
@@ -1172,7 +1184,7 @@ def draw_shape(c: Canvas, it):
                   wrap=it["wrap"], paras=it["paras"], vert=it["vert"], ins=it["ins"])
 
 
-def draw_cylinder(c: Canvas, it):
+def draw_cylinder(c: Canvas, it: dict[str, Any]) -> None:
     x, y, w, h = it["box"]
     ry = min(h * 0.18, w * 0.25)
     body = [(x, y + ry), (x, y + h - ry)]
@@ -1184,7 +1196,7 @@ def draw_cylinder(c: Canvas, it):
     c.d.ellipse(c.pts([(x, y), (x + w, y + 2 * ry)]), fill=it["fill"], outline="black")
 
 
-def draw_checkbox(c: Canvas, it):
+def draw_checkbox(c: Canvas, it: dict[str, Any]) -> None:
     x, y, w, h = it["box"]
     size = min(h * 0.7, 10)
     bx, by = x + 1, y + (h - size) / 2
@@ -1197,7 +1209,7 @@ def draw_checkbox(c: Canvas, it):
     c.text_in_box(it["text"], [bx + size + 3, y, w - size - 4, h], it["pt"], align="left")
 
 
-def draw_connector(c: Canvas, it, by_id):
+def draw_connector(c: Canvas, it: dict[str, Any], by_id: dict[str, dict[str, Any]]) -> None:
     if not it["line"]:
         return
     pts = connector_path(it, by_id)
@@ -1208,7 +1220,7 @@ def draw_connector(c: Canvas, it, by_id):
         c.arrowhead(pts[0], pts[1], size=9, color=it["lncolor"])
 
 
-def render(items, cells, title: str, size: tuple[float, float] | None = None) -> Image.Image:
+def render(items: list[dict[str, Any]], cells: list[dict[str, Any]], title: str, size: tuple[float, float] | None = None) -> Image.Image:
     """size: 画布の大きさ(px)。None なら図形の範囲に合わせる(xlsx)。pptx はスライドの大きさを渡す。"""
     top = TITLE_PX
     if size:
@@ -1240,7 +1252,7 @@ def render(items, cells, title: str, size: tuple[float, float] | None = None) ->
     return c.im
 
 
-def render_region(items, region: tuple[float, float, float, float], scale: float) -> Image.Image:
+def render_region(items: list[dict[str, Any]], region: tuple[float, float, float, float], scale: float) -> Image.Image:
     """図形のうち region(x, y, w, h。px, 96dpi)に掛かるものだけを、region の範囲で scale 倍に描く(題もセルも描かない)。
 
     xlsx に貼られた画像を、上に重ねた図形(番号・枠・吹き出し・矢印)ごと、画像の元の解像度に近い倍率で読ませるため。

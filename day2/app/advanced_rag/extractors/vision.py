@@ -24,17 +24,27 @@ import io
 import json
 import os
 import sys
+from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 from openai import OpenAI
 
-from . import Chunked, Section
-from . import structured
+if TYPE_CHECKING:
+    from PIL import Image
+
+from . import Chunked, Section, structured
 from .chunking import chunk_sections
 from .figure_rules import OMIT, RULES
-
-from .render_drawing import SCALE, Workbook, collect, open_image, render_region, render_sheets
+from .render_drawing import (
+    SCALE,
+    Workbook,
+    collect,
+    open_image,
+    render_region,
+    render_sheets,
+)
 
 VISION_MODEL = os.environ.get("VISION_MODEL", "gpt-6-luna")
 VISION_REASONING_EFFORT = os.environ.get("VISION_REASONING_EFFORT", "low")
@@ -87,7 +97,7 @@ def _describe(png: bytes, prompt: str, json_mode: bool = False) -> str:
     return (res.choices[0].message.content or "").strip()
 
 
-def _png_bytes(im) -> bytes:
+def _png_bytes(im: "Image.Image") -> bytes:
     w, h = im.size
     if max(w, h) > MAX_SIDE:
         r = MAX_SIDE / max(w, h)
@@ -132,13 +142,13 @@ def describe(path: Path, images: dict[str, "Image.Image"], prompt: str,
     return out
 
 
-def _overlaps(a, b) -> bool:
+def _overlaps(a: Sequence[float], b: Sequence[float]) -> bool:
     ax, ay, aw, ah = a
     bx, by, bw, bh = b
     return ax < bx + bw and bx < ax + aw and ay < by + bh and by < ay + ah
 
 
-def picture_image(items: list[dict], pic: dict) -> "Image.Image":
+def picture_image(items: list[dict[str, Any]], pic: dict[str, Any]) -> "Image.Image":
     """貼られた画像 1 枚を読ませる画像にする。
 
     上に図形が重なっていなければ、元の画像ファイルそのもの。重なっていれば、画像の枠と重なる図形の枠を合わせた範囲

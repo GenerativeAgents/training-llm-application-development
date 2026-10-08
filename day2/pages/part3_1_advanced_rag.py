@@ -1,12 +1,13 @@
+from typing import Any
+
 import streamlit as st
 import weave
-
 from app.advanced_rag.rag import DATA_DIR, PROJECT, PROMPTS, RagModel
 
 CORPUS_DIR = DATA_DIR / "corpus"
 
 # 段階 → RagModel の対応表
-STAGES = {
+STAGES: dict[int, dict[str, Any]] = {
     1: {"index": "basic"},
     2: {"index": "basic", "use_collection": True},
     3: {"index": "structured", "use_collection": True},
@@ -33,7 +34,7 @@ STAGES = {
 
 
 class GuiRagModel(RagModel):
-    def retrieve(self, question: str, collection: str | None = None) -> dict:  # type: ignore
+    def retrieve(self, question: str, collection: str | None = None) -> dict[str, Any]:  # type: ignore
         """検索が終わった時点で、LLM に渡すチャンクの一覧を出す。op にしないので、トレースは評価と同じ形になる。"""
         retrieved = super().retrieve(question, collection)
         st.subheader("LLM に渡す情報")
@@ -57,7 +58,7 @@ def init_weave() -> None:
     weave.init(PROJECT)
 
 
-def app():
+def app() -> None:
     init_weave()
     st.title("Advanced RAG")
 

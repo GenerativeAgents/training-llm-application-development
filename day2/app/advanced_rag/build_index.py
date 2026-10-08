@@ -20,8 +20,7 @@ import json
 import lancedb
 from lancedb.index import FTS
 
-from . import fulltext
-from . import ingest
+from . import fulltext, ingest
 from .extractors import EXTRACTORS
 from .rag import DB_DIR, RagModel, docs_path, embed, load_jsonl, meta_path, table_name
 

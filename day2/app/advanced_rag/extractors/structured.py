@@ -23,15 +23,17 @@ import warnings
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
+from typing import cast
 from xml.etree import ElementTree as ET
 
-
 import openpyxl
+from openpyxl.workbook.workbook import Workbook as ExcelWorkbook
+from openpyxl.worksheet.worksheet import Worksheet
 
 from . import Chunked, Line, Section
 from .chunking import chunk_sections
-
-from .render_drawing import NS as DRAWING_NS, Package, chart_data, chart_lines
+from .render_drawing import NS as DRAWING_NS
+from .render_drawing import Package, chart_data, chart_lines
 
 FRAME_ROWS = 5  # ヘッダ枠を探す、シートの先頭からの行数(値のある行で数える)
 HEADING_RE = re.compile(r"^(\(\d+(-\d+)?\)|(\d+\.)+)\s*\S")  # "2.1. 画面レイアウト", "(1) バリデーション処理"
@@ -39,7 +41,7 @@ HEADING_RE = re.compile(r"^(\(\d+(-\d+)?\)|(\d+\.)+)\s*\S")  # "2.1. 画面レ�
 warnings.filterwarnings("ignore", module="openpyxl")  # Data Validation extension の警告
 
 
-def cell_text(value) -> str:
+def cell_text(value: object) -> str:
     if isinstance(value, datetime):
         return value.date().isoformat()
     if isinstance(value, float) and value.is_integer():
@@ -56,7 +58,7 @@ MAX_LABEL_CHARS = 20  # ヘッダのラベルとみなす長さ
 Cell = tuple[int, int, str, int]  # (開始列, 終了列, テキスト, 縦に結合している行数)
 
 
-def row_cells(ws) -> list[tuple[int, list[Cell]]]:
+def row_cells(ws: Worksheet) -> list[tuple[int, list[Cell]]]:
     """行ごとに、値のあるセルを返す。結合セルは右端の列と縦の行数も持つ。"""
     spans = {(m.min_row, m.min_col): (m.max_col, m.max_row - m.min_row + 1) for m in ws.merged_cells.ranges}
     rows = []
@@ -76,7 +78,7 @@ def row_cells(ws) -> list[tuple[int, list[Cell]]]:
 
 def clean(cells: list[Cell]) -> list[Cell]:
     """ノイズのセルを落とす: 値の無いラベル(`作成者：`)、括弧だけの枠、補助列で横に繰り返された同じ値。"""
-    out = []
+    out: list[Cell] = []
     for c in cells:
         text = c[2]
         if text.endswith(("：", ":")) or BRACKETS_RE.fullmatch(text):
@@ -153,7 +155,7 @@ def toc_sheets(sheets: dict[str, list[Row]]) -> set[str]:
     return found
 
 
-def validation_sheets(wb) -> set[str]:
+def validation_sheets(wb: ExcelWorkbook) -> set[str]:
     """入力規則(プルダウン)の選択肢の置き場になっているシート。参照は直接(`データ!$A$1:$A$5`)か名前の定義経由。"""
     names = {n: d.attr_text for n, d in wb.defined_names.items()}
     for ws in wb.worksheets:
@@ -176,7 +178,7 @@ def is_label_row(cells: list[Cell]) -> bool:
 Header = list[tuple[int, int, str]]  # (開始列, 終了列, ラベル)
 
 
-def header_block(rows, i: int) -> tuple[Header, int] | None:
+def header_block(rows: list[Row], i: int) -> tuple[Header, int] | None:
     """rows[i] から始まるヘッダを読む。(ヘッダ, ヘッダの次の行の添字) を返す。ヘッダでなければ None。
 
     ヘッダは短いラベルが 3 つ以上並ぶ行。セルが縦に結合していれば、その高さの分の行もヘッダの段として読み
@@ -239,7 +241,7 @@ def confirms_header(header: Header, following: list[list[Cell]]) -> bool:
     return not all(is_label_row(cells) for cells in following)
 
 
-def sheet_rows(ws) -> list[Row]:
+def sheet_rows(ws: Worksheet) -> list[Row]:
     """値のある行を、ノイズのセルと番号の並びの行を落として返す。"""
     rows = [(no, clean(cells)) for no, cells in row_cells(ws)]
     return [(no, cells) for no, cells in rows if cells and not is_noise_row(cells)]
@@ -309,7 +311,7 @@ def shape_texts(path: Path) -> tuple[dict[str, list[str]], dict[str, list[str]]]
             texts += [t.text.strip() for t in root.iter("{%s}t" % DRAWING_NS["a"]) if t.text and t.text.strip()]
             drawing_rels = pkg._rels(f"{Path(drawing).parent}/_rels/{Path(drawing).name}.rels")
             for ref in root.iter("{%s}chart" % DRAWING_NS["c"]):
-                chart_part = Package._resolve(drawing, drawing_rels.get(ref.get("{%s}id" % DRAWING_NS["r"]), ""))
+                chart_part = Package._resolve(drawing, drawing_rels.get(cast(str, ref.get("{%s}id" % DRAWING_NS["r"])), ""))
                 data = chart_data(pkg.z.read(chart_part)) if chart_part in pkg.names else None
                 if data:
                     chart_rows += chart_lines(data)

@@ -22,7 +22,10 @@ def split_chunks_with_index(lines: list[Line]) -> list[tuple[str, list[int]]]:
 
     行ごとの付帯情報(PDF のページ番号など)から、チャンクごとの範囲を出すのに使う。
     """
-    chunks, current, size, index = [], [], 0, []
+    chunks: list[tuple[str, list[int]]] = []
+    current: list[str] = []
+    size = 0
+    index: list[int] = []
     context: dict[str, str] = {}  # 直近の heading / header
     for i, (text, kind) in enumerate(lines):
         if current and (size + len(text) > MAX_CHARS or (kind == "heading" and size > MAX_CHARS / 2)):

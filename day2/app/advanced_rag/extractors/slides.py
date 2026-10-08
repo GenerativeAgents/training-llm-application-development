@@ -13,19 +13,26 @@
 
 import re
 from pathlib import Path
+from typing import Any
 
 from . import Chunked, Line, Section
-from .figure_rules import OMIT, RULES
 from .chunking import chunk_sections
-
-from .render_drawing import SCALE, TITLE_PX, Presentation, chart_lines, collect_slide, render_slides
+from .figure_rules import OMIT, RULES
+from .render_drawing import (
+    SCALE,
+    TITLE_PX,
+    Presentation,
+    chart_lines,
+    collect_slide,
+    render_slides,
+)
 
 ROW_PX = 24  # この高さ(px, 96dpi)で行の帯を作り、帯の中は左から右へ並べる
 
 TABLE_CELL_RE = re.compile(r"^(\d+)-(\d+)-(\d+)$")  # render_drawing.Collector.emit_table のセル ID: 表ID-行-列
 
 
-def text_top(it: dict) -> float:
+def text_top(it: dict[str, Any]) -> float:
     """文字が始まる高さ(px)。枠の上端ではなくこれで並べる。
 
     大枠(上端が高い)の中に小さな見出しラベルが重なっている構図が多く、枠の上端で並べると中身が見出しより先に来る。
@@ -43,14 +50,14 @@ def text_top(it: dict) -> float:
 Box = tuple[float, float, float, float]  # (x0, top, x1, bottom)(px, 96dpi)
 
 
-def boxed_lines(items: list[dict]) -> list[tuple[Box, Line]]:
+def boxed_lines(items: list[dict[str, Any]]) -> list[tuple[Box, Line]]:
     """図形の文字を読み順(上から下、同じ帯なら左から右)に行にし、行ごとにその図形の枠を添える。
 
     段落ごとに 1 行(同じ図形の段落は同じ枠)。表はセルを行ごとに ` | ` で連結して 1 行にし、1 行目をヘッダ扱いにする
     (枠はその行のセルを合わせた範囲)。最初の行を題(heading)にする(ポンチ絵の題は最上段にある)。
     """
     units: list[tuple[tuple[float, float], Box, list[str], str]] = []  # ((文字の上端, 左端), 枠, 行のリスト, 種別)
-    rows: dict[tuple[str, int], list[dict]] = {}
+    rows: dict[tuple[str, int], list[dict[str, Any]]] = {}
     for it in items:
         m = TABLE_CELL_RE.match(it["id"])
         if m:
@@ -77,7 +84,7 @@ def boxed_lines(items: list[dict]) -> list[tuple[Box, Line]]:
     return lines
 
 
-def slide_lines(items: list[dict]) -> list[Line]:
+def slide_lines(items: list[dict[str, Any]]) -> list[Line]:
     return [line for _, line in boxed_lines(items)]
 
 

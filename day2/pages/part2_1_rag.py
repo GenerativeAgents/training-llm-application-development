@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from typing import TypedDict
 
 import lancedb
 import streamlit as st
@@ -7,6 +8,18 @@ import weave
 from dotenv import load_dotenv
 from openai import OpenAI
 from streamlit_feedback import streamlit_feedback
+from weave.trace.weave_client import Call
+
+
+class RagOutput(TypedDict):
+    hits: list[dict[str, str]]
+    answer: str | None
+
+
+class Feedback(TypedDict):
+    score: str
+    text: str | None
+
 
 DB_DIR = Path("data/lancedb")
 
@@ -15,19 +28,19 @@ client = OpenAI(max_retries=10)
 
 
 @st.cache_resource
-def init_weave():
+def init_weave() -> None:
     weave.init(os.environ["WANDB_PROJECT"])
 
 
 # 文字列をベクトルに変換(埋め込み)
-def embed(texts):
+def embed(texts: list[str]) -> list[list[float]]:
     res = client.embeddings.create(model="text-embedding-3-small", input=texts)
     return [d.embedding for d in res.data]
 
 
 # 質問文をベクトルにして、コサイン距離が近いチャンクの上位5件を取り出す
 @weave.op
-def search(question):
+def search(question: str) -> list[dict[str, str]]:
     table = lancedb.connect(DB_DIR).open_table("simple_rag")
     hits = table.search(embed([question])[0]).distance_type("cosine").limit(5).to_list()
     return [{"source": hit["source"], "text": hit["text"]} for hit in hits]
@@ -35,7 +48,7 @@ def search(question):
 
 # LLMに、取り出したチャンクを情報として与えて質問に答えさせる
 @weave.op
-def rag(question):
+def rag(question: str) -> RagOutput:
 
     # 検索の実行
     hits = search(question)
@@ -56,7 +69,7 @@ def rag(question):
 
 
 # フィードバックの送信
-def send_feedback(feedback, call):
+def send_feedback(feedback: Feedback, call: Call) -> None:
     """streamlit_feedback の送信内容(score は 👍 か 👎、text はコメント)を、このトレースに付ける。"""
     call.feedback.add_reaction(feedback["score"])
     if feedback["text"]:
@@ -64,7 +77,7 @@ def send_feedback(feedback, call):
     st.success("ご意見ありがとうございました。")
 
 
-def app():
+def app() -> None:
     init_weave()
     st.title("シンプルなRAG")
 

@@ -33,6 +33,7 @@ import json
 import os
 import re
 import sys
+from typing import Any, TypedDict, cast
 
 import weave
 from pydantic import BaseModel, Field
@@ -48,6 +49,13 @@ JUDGE_PROMPT = (
     "質問に対する回答を採点します。回答が正解と同じ内容を含んでいれば correct を true に、"
     "誤りや欠落があれば false にしてください。表現の違いは問いません。"
 )
+
+
+class RetrievalScore(TypedDict):
+    hit: bool
+    recall: float
+    ranks: list[list[int | None]]
+    needed_k: int | None
 
 
 class Judgement(BaseModel):
@@ -73,18 +81,18 @@ def covers(doc_id: str, source_id: str) -> bool:
     if not page or not doc_id.startswith(path + "#"):
         return False
     span = PAGE_RANGE_RE.match(doc_id, len(path) + 1)
-    return bool(span) and int(span[1]) <= int(page[1]) <= int(span[2])
+    return bool(span) and int(cast(re.Match[str], span)[1]) <= int(page[1]) <= int(cast(re.Match[str], span)[2])
 
 
 @weave.op
-def retrieval_hit(source_ids: list[list[str]], output: dict) -> dict:
+def retrieval_hit(source_ids: list[list[str]], output: dict[str, Any]) -> RetrievalScore:
     ids = [c["id"] for c in output["contexts"]]
     recalls = []
     for group in source_ids:  # どれか 1 組が揃えば当たり
         found = [any(covers(i, s) for i in ids) for s in group]
         recalls.append(sum(found) / len(found))
     ranks = [[rank_of(s, output["ranked_ids"]) for s in group] for group in source_ids]
-    needs = [max(r) for r in ranks if None not in r]
+    needs = [max(cast(list[int], r)) for r in ranks if None not in r]
     return {"hit": max(recalls) == 1, "recall": max(recalls), "ranks": ranks, "needed_k": min(needs, default=None)}
 
 
@@ -94,7 +102,7 @@ def rank_of(source_id: str, ranked_ids: list[str]) -> int | None:
 
 
 @weave.op
-def answer_correct(question: str, expected: str, output: dict) -> dict:
+def answer_correct(question: str, expected: str, output: dict[str, Any]) -> dict[str, Any]:
     res = client.chat.completions.parse(
         model=JUDGE_MODEL,
         messages=[

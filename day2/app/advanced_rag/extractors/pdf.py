@@ -27,6 +27,7 @@
 import re
 from collections import Counter
 from pathlib import Path
+from typing import TYPE_CHECKING, cast
 
 from pdfminer.high_level import extract_pages, extract_text
 from pdfminer.layout import LTTextLine
@@ -35,9 +36,12 @@ from pdfminer.pdfpage import PDFPage
 from pdfminer.pdfparser import PDFParser
 from pdfminer.pdftypes import resolve1
 
-from . import Chunked
-from .figure_rules import OMIT, RULES
+if TYPE_CHECKING:
+    from PIL import Image
+
+from . import Chunked, ChunkedWithMeta
 from .chunking import split_chunks_with_index
+from .figure_rules import OMIT, RULES
 
 HEADING_RE = re.compile(r"^(?:\d+|[A-Z])\.\d+\.\d+ \S")  # 1.3.1 基本ファイル形式での保存
 DOUBLED_RE = re.compile(r"^(?:(.)\1|\s)+$")  # 章扉の太字: 文字が 2 つずつ重なる
@@ -102,7 +106,7 @@ def running_lines(path: Path) -> list[set[str]]:
     """
     bands: list[set[str]] = []
     for page in extract_pages(path):
-        found = set()
+        found: set[str] = set()
         stack = list(page)
         while stack:
             el = stack.pop()
@@ -123,7 +127,7 @@ def running_lines(path: Path) -> list[set[str]]:
         pages = [band for i, band in enumerate(bands, 1) if i % 2 == parity]
         counts = Counter(t for band in pages for t in band)
         running |= {t for t, c in counts.items() if c >= 3 and c >= len(pages) / 2}
-    return [{t for t in band if t in running or shapes.get(number_shape(t), 0) >= 3} for band in bands]
+    return [{t for t in band if t in running or shapes.get(cast(str, number_shape(t)), 0) >= 3} for band in bands]
 
 
 def _range_name(pages: list[int]) -> str:
@@ -145,7 +149,7 @@ def _chunk_with_pages(units: list[list[tuple[str, str, int]]]) -> list[Chunked]:
             name = _range_name([lines[i][2] for i in index])
             if result and result[-1][0] == name:
                 result[-1][1].append(text)
-                result[-1][2].append(meta)
+                cast(ChunkedWithMeta, result[-1])[2].append(meta)
             else:
                 result.append((name, [text], [meta]))
     return result
@@ -158,7 +162,7 @@ def _outline_units(pages: list[list[str]], items: list[tuple[int, str, int]]) ->
     無ければページの先頭で区切る。最初の項目より前(表紙など)は捨てる。
     """
     chapters = {_squash(re.sub(r"^\S+ ", "", title)) for level, title, _ in items if level == 1}
-    starts = []  # 項目ごとの (ページ, 行番号)
+    starts: list[tuple[int, int]] = []  # 項目ごとの (ページ, 行番号)
     for _, title, pno in items:
         lines = pages[pno - 1]
         begin = starts[-1][1] + 1 if starts and starts[-1][0] == pno else 0
@@ -229,8 +233,8 @@ after は、その説明を本文のどの行の後ろに差し込むかで、�
 図も画像も無ければ {{"items": []}} を返してください。"""
 
 
-def page_inputs(path: Path) -> tuple[dict[str, "Image.Image"], dict[str, list[str]]]:
-    """ページ全体の画像(`p15` → 画像)と、テキスト層の行(`p15` → 行の文字のリスト)を返す。
+def page_inputs(path: Path) -> tuple[dict[str, "Image.Image"], dict[str, list[tuple[list[int], str]]]]:
+    """ページ全体の画像(`p15` → 画像)と、テキスト層の行(`p15` → (座標, 文字)のリスト)を返す。
 
     画像は長い辺が vision.MAX_SIDE になる解像度で描く(送るときに縮小されない大きさ)。
     行は pdfplumber の extract_text_lines の順で、プロンプトの `L番号` はこのリストの 1 始まりの番号。

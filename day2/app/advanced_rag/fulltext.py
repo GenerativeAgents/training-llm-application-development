@@ -25,6 +25,8 @@ import unicodedata
 
 from lancedb.query import BooleanQuery, FullTextQuery, MatchQuery, Occur, PhraseQuery
 from sudachipy import Dictionary, SplitMode
+from sudachipy.morpheme import Morpheme
+from sudachipy.tokenizer import Tokenizer
 
 COLUMNS = {"morph": "fts_morph", "bigram": "fts_bigram"}  # 検索に使う列(RagModel.fts_fields で選ぶ)
 UNIGRAM = "fts_unigram"
@@ -55,7 +57,7 @@ def morphs(text: str) -> list[str]:
     return out
 
 
-def _tokenizer():
+def _tokenizer() -> Tokenizer:
     if not hasattr(_sudachi, "tokenizer"):
         _sudachi.tokenizer = Dictionary(dict="core").tokenizer(SplitMode.C)
     return _sudachi.tokenizer
@@ -75,8 +77,9 @@ def keywords(question: str) -> str:
     ほかの名詞と続いていれば残す(「1960年ごろ」)。空白・記号(英数字の間の _ - . / を除く)で語を切る。
     """
     text = unicodedata.normalize("NFKC", question)
-    words, run = [], []  # run: 続いている内容語の形態素
-    def flush():
+    words: list[str] = []
+    run: list[Morpheme] = []  # run: 続いている内容語の形態素
+    def flush() -> None:
         if run and not (len(run) == 1 and ("副詞可能" in run[0].part_of_speech() or run[0].surface() in QUESTION_NOUNS)):
             words.append(text[run[0].begin() : run[-1].end()])
         run.clear()

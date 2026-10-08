@@ -20,6 +20,7 @@ import json
 import sys
 from collections import Counter
 from pathlib import Path
+from typing import Any
 
 from .extractors import EXTRACTORS, SUFFIXES
 from .rag import DATA_DIR, docs_path
@@ -28,12 +29,12 @@ CORPUS_DIR = DATA_DIR / "corpus"
 DEFAULT_EXTRACTOR = "structured"
 
 
-def ingest_file(path: Path, extractor: str) -> list[dict]:
+def ingest_file(path: Path, extractor: str) -> list[dict[str, Any]]:
     rel = path.relative_to(CORPUS_DIR)
     collection = rel.parts[0]  # 資料群(data/corpus/ 直下のフォルダ)。検索時の絞り込みに使う
     doc_id = rel.with_suffix("").as_posix()
     doc_title = " / ".join(rel.with_suffix("").parts)  # フォルダ階層も含める(同名ファイルを区別できるように)
-    records = []
+    records: list[dict[str, Any]] = []
     for sheet, chunks, *meta in EXTRACTORS[extractor](path):
         for i, text in enumerate(chunks):
             suffix = f"#{i + 1}" if len(chunks) > 1 else ""

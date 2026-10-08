@@ -23,10 +23,17 @@ Section = tuple[str, list[Line]]  # 切る前: (区切り名, 行のリスト)
 # 切った後: (区切り名, チャンクの本文リスト)。3 つ目に、チャンクごとの付帯情報(dict)のリストを付けてもよい:
 # - unit: そのチャンクを切り出した区切り。無ければ区切り名。PDF はしおりの項目の区切り名がチャンクのページ範囲と
 #   違うので、項目全体のページ範囲を入れる(回答時に同じ区切りのほかのチャンクを渡すのに使う。段階 8)
-Chunked = tuple[str, list[str]] | tuple[str, list[str], list[dict]]
+ChunkedWithMeta = tuple[str, list[str], list[dict[str, str]]]
+Chunked = tuple[str, list[str]] | ChunkedWithMeta
 Extractor = Callable[[Path], list[Chunked]]
 
-from . import basic, chunking, pdf, slides, structured  # noqa: E402  (上の定義を参照するため後置)
+from . import (  # noqa: E402  (上の定義を参照するため後置)
+    basic,
+    chunking,
+    pdf,
+    slides,
+    structured,
+)
 
 
 def _vision(path: Path) -> list[Chunked]:

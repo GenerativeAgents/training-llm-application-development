@@ -2,9 +2,11 @@ import json
 import os
 import sys
 from pathlib import Path
+from typing import Any
 
 import lancedb
 import numpy as np
+import numpy.typing as npt
 import weave
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -84,7 +86,7 @@ COLLECTION_PROMPTS = {
 }
 
 # eval.py --prompt の名前 → RagModel の属性。answer_format が text なら回答をそのまま、evidence なら Structured Outputs の answer を使う
-PROMPTS = {
+PROMPTS: dict[str, dict[str, Any]] = {
     "base": {"system_prompt": SYSTEM_PROMPT, "answer_format": "text"},
     "rules": {"system_prompt": RULES_PROMPT, "answer_format": "text"},
     "evidence": {"system_prompt": EVIDENCE_PROMPT, "answer_format": "evidence"},
@@ -140,14 +142,14 @@ class EvidenceAnswer(BaseModel):
     answer: str
 
 
-def load_jsonl(path: Path) -> list[dict]:
+def load_jsonl(path: Path) -> list[dict[str, Any]]:
     return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
 
 
 EMBED_BATCH = 32  # 1 リクエストあたりの文書数(トークン上限 30 万に収める)
 
 
-def embed(texts: list[str], model: str) -> np.ndarray:
+def embed(texts: list[str], model: str) -> npt.NDArray[np.float64]:
     embeddings = []
     for i in range(0, len(texts), EMBED_BATCH):
         res = client.embeddings.create(model=model, input=texts[i : i + EMBED_BATCH])
@@ -180,7 +182,7 @@ def has_index(index: str) -> bool:
     return meta_path(index).exists()
 
 
-def index_meta(index: str) -> dict:
+def index_meta(index: str) -> dict[str, str]:
     if not has_index(index):
         raise RuntimeError(
             f"インデックス {index} がありません。uv run python -m app.advanced_rag.build_index --extractor {index} を実行してください"
@@ -266,7 +268,7 @@ class RagModel(weave.Model):
         return res.choices[0].message.parsed.score
 
     @weave.op
-    def rerank_score_midway(self, question: str, title: str, text: str) -> dict:
+    def rerank_score_midway(self, question: str, title: str, text: str) -> dict[str, Any]:
         """チャンク 1 件の関連度(score、0〜10)と、手順・列挙の途中から始まっているか(starts_midway)。"""
         res = client.chat.completions.parse(
             model=self.chat_model,
@@ -304,7 +306,7 @@ class RagModel(weave.Model):
         )
         return res.choices[0].message.parsed.starts_midway
 
-    def _rerank(self, question: str, hits: list[dict]) -> list[dict]:
+    def _rerank(self, question: str, hits: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """上位 rerank_depth 件を LLM の点で並べ直す。同点は元の順位の順。score は LLM の点に置き換える。
 
         expand が unit+steps なら、同じ呼び出しで手順の途中から始まっているか(starts_midway)も付ける。
@@ -325,7 +327,7 @@ class RagModel(weave.Model):
             head[i] | got[i] | {"score": float(got[i]["score"])} for i in order
         ] + tail
 
-    def _select(self, hits: list[dict]) -> list[dict]:
+    def _select(self, hits: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """LLM に渡すチャンクを選ぶ。top_k なら上位 top_k 件、score なら並べ直しの点が閾値以上(min〜max 件)。"""
         if self.select == "top_k":
             return hits[: self.top_k]
@@ -344,8 +346,8 @@ class RagModel(weave.Model):
         )
 
     def _expand(
-        self, table: lancedb.table.Table, selected: list[dict], judged: dict[str, bool]
-    ) -> list[dict]:
+        self, table: lancedb.table.Table, selected: list[dict[str, Any]], judged: dict[str, bool]
+    ) -> list[dict[str, Any]]:
         """選んだチャンクを、同じ区切りのほかのチャンク(と、unit+steps なら手前のチャンク)まで広げる。
 
         選んだチャンクごとに 1 つのまとまり(group)にし、まとまりの中はファイルの中の順(seq)に並べる。
@@ -354,7 +356,7 @@ class RagModel(weave.Model):
         xlsx はシートごとに独立した文書なので、シートをまたいではさかのぼらない(同じシートのチャンクは区切りとして全部足している)。
         """
 
-        def rows(where: str) -> list[dict]:
+        def rows(where: str) -> list[dict[str, Any]]:
             return (
                 table.search()
                 .where(where)
@@ -418,7 +420,7 @@ class RagModel(weave.Model):
 
     def _vector_hits(
         self, table: lancedb.table.Table, question: str, where: str | None, depth: int
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         query = embed([question], self.embedding_model)[0]
         search = (
             table.search(query, vector_column_name="vector")
@@ -432,7 +434,7 @@ class RagModel(weave.Model):
 
     def _fts_hits(
         self, table: lancedb.table.Table, question: str, where: str | None, depth: int
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         query = fulltext.query(self.pos_keywords(question), self.fts_fields)
         if query is None:
             return []
@@ -444,7 +446,7 @@ class RagModel(weave.Model):
         ]  # score は BM25
 
     @weave.op
-    def retrieve(self, question: str, collection: str | None = None) -> dict:
+    def retrieve(self, question: str, collection: str | None = None) -> dict[str, Any]:
         """上位 top_k 件のチャンク(contexts)と、上位 rank_depth 件の ID(ranked_ids、正解の順位の診断用)を返す。"""
         table = get_table(self.index, self.embedding_model)
         depth = max(self.top_k, self.rank_depth)
@@ -464,7 +466,8 @@ class RagModel(weave.Model):
                 self._vector_hits(table, question, where, depth),
                 self._fts_hits(table, question, where, depth),
             ]
-            docs, scores = {}, {}
+            docs: dict[str, dict[str, Any]] = {}
+            scores: dict[str, float] = {}
             for hits_ in lists:
                 for rank, h in enumerate(hits_, 1):
                     docs.setdefault(h["id"], h)
@@ -502,12 +505,12 @@ class RagModel(weave.Model):
         return {"contexts": contexts, "ranked_ids": [h["id"] for h in hits]}
 
     @weave.op
-    def predict(self, question: str, collection: str | None = None) -> dict:
+    def predict(self, question: str, collection: str | None = None) -> dict[str, Any]:
         """collection は質問者が選んだ資料群(データセットの collection 列)。use_collection が false なら使わない。"""
         retrieved = self.retrieve(question, collection)
         contexts = retrieved["contexts"]
         # 広げたとき(group あり)は、まとまりごとに 1 つの文書として渡す。題は区切り(unit)の並び
-        blocks: dict[int, list[dict]] = {}
+        blocks: dict[int, list[dict[str, Any]]] = {}
         for n, c in enumerate(contexts):
             blocks.setdefault(c.get("group", n), []).append(c)
         titles = {
