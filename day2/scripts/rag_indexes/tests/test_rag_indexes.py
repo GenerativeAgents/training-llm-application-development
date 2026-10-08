@@ -1,4 +1,4 @@
-"""外部API・GitHubの変更なしで、実LanceDBの配布・復元とRelease操作を検証する。"""
+"""外部APIなしで、実LanceDBのインデックス生成・配布・復元を検証する。"""
 
 import argparse
 import io
@@ -265,14 +265,6 @@ class DistributionTest(unittest.TestCase):
         self.assertFalse((self.destination / "docs_basic.lance").exists())
         self.assert_simple_preserved()
 
-    def release_args(self, draft=False):
-        return argparse.Namespace(
-            archive=self.archive,
-            version="2026-10-08",
-            repo=distribution.REPO,
-            draft=draft,
-        )
-
     def test_create_packages_only_targets_and_checks_restored_search(self):
         root = self.work / "build-repo"
         project = root / "day2"
@@ -371,96 +363,10 @@ class DistributionTest(unittest.TestCase):
                     distribution.create(args)
                 run.assert_not_called()
 
-    def test_release_uses_build_sha_and_publishes_after_upload(self):
-        with (
-            patch.object(distribution, "api", side_effect=[{"sha": SHA}, None, None]),
-            patch.object(distribution, "run") as run,
-        ):
-            distribution.release_create(self.release_args())
-        commands = [call.args for call in run.call_args_list]
-        self.assertEqual(commands[0][2], "create")
-        self.assertEqual(commands[0][commands[0].index("--target") + 1], SHA)
-        self.assertIn("--draft", commands[0])
-        self.assertEqual(commands[1][2], "upload")
-        self.assertEqual(Path(commands[1][4]).name, distribution.ASSET)
-        self.assertEqual(commands[2][2], "edit")
-        self.assertIn("--draft=false", commands[2])
-
-    def test_draft_is_reused_without_another_release(self):
-        existing = {"draft": True, "target_commitish": SHA}
-        with (
-            patch.object(
-                distribution, "api", side_effect=[{"sha": SHA}, None, existing]
-            ),
-            patch.object(distribution, "run") as run,
-        ):
-            distribution.release_create(self.release_args(draft=True))
-        self.assertEqual(len(run.call_args_list), 1)
-        self.assertEqual(run.call_args.args[2], "upload")
-
-    def test_upload_failure_does_not_publish(self):
-        def gh(*command):
-            if command[2] == "upload":
-                raise subprocess.CalledProcessError(1, "gh release upload")
-
-        with (
-            patch.object(distribution, "api", side_effect=[{"sha": SHA}, None, None]),
-            patch.object(distribution, "run", side_effect=gh) as run,
-        ):
-            with self.assertRaises(subprocess.CalledProcessError):
-                distribution.release_create(self.release_args())
-        self.assertNotIn("edit", [call.args[2] for call in run.call_args_list])
-
-    def test_rejects_tag_mismatch_and_published_release(self):
-        cases = (
-            [{"sha": SHA}, {"object": {}}, {"sha": "b" * 40}],
-            [{"sha": SHA}, None, {"draft": False}],
-            [{"sha": SHA}, None, {"draft": True, "target_commitish": "b" * 40}],
-        )
-        for replies in cases:
-            with self.subTest(replies=replies):
-                with (
-                    patch.object(distribution, "api", side_effect=replies),
-                    patch.object(distribution, "run") as run,
-                ):
-                    with self.assertRaises(ValueError):
-                        distribution.release_create(self.release_args())
-                    run.assert_not_called()
-
-    def test_delete_includes_tag_and_only_skips_prompt_with_yes(self):
-        for yes in (False, True):
-            with (
-                patch.object(distribution, "run") as run,
-                patch.object(distribution, "api", return_value={"object": {}}),
-            ):
-                distribution.release_delete(
-                    argparse.Namespace(
-                        version="2026-10-08", repo=distribution.REPO, yes=yes
-                    )
-                )
-            self.assertIn("--cleanup-tag", run.call_args.args)
-            self.assertEqual("--yes" in run.call_args.args, yes)
-
-    def test_delete_draft_without_a_tag(self):
-        with (
-            patch.object(distribution, "run") as run,
-            patch.object(distribution, "api", return_value=None),
-        ):
-            distribution.release_delete(
-                argparse.Namespace(
-                    version="2026-10-08", repo=distribution.REPO, yes=True
-                )
-            )
-        self.assertEqual(run.call_args.args[2], "delete")
-        self.assertNotIn("--cleanup-tag", run.call_args.args)
-
 
 class ArgumentsTest(unittest.TestCase):
-    def test_required_versions_and_invalid_dates(self):
+    def test_invalid_download_arguments(self):
         for args in (
-            ("release-create",),
-            ("release-delete",),
-            ("release-delete", "--version", "2026-02-30"),
             ("download", "--version", "latest"),
             ("download", "--version", "2026-10-08", "--archive", "x"),
         ):
@@ -469,16 +375,6 @@ class ArgumentsTest(unittest.TestCase):
                 capture_output=True,
             )
             self.assertEqual(result.returncode, 2, args)
-
-    def test_api_does_not_hide_authentication_or_server_errors(self):
-        for code in (401, 403, 500):
-            result = subprocess.CompletedProcess([], 1, "", f"gh: failed (HTTP {code})")
-            with patch.object(distribution.subprocess, "run", return_value=result):
-                with self.assertRaises(RuntimeError):
-                    distribution.api(distribution.REPO, "x", optional=True)
-        missing = subprocess.CompletedProcess([], 1, "", "gh: Not Found (HTTP 404)")
-        with patch.object(distribution.subprocess, "run", return_value=missing):
-            self.assertIsNone(distribution.api(distribution.REPO, "x", optional=True))
 
 
 if __name__ == "__main__":

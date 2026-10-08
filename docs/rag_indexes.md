@@ -96,7 +96,9 @@ gh release download 2026-10-08 \
 ```text
 scripts/release/
 ├── create.sh
-└── delete.sh
+├── delete.sh
+├── cli.py
+└── tests/
 
 day2/scripts/rag_indexes/
 ├── create.sh
@@ -106,7 +108,9 @@ day2/scripts/rag_indexes/
 └── tests/
 ```
 
-4つの `.sh` は共通処理の `day2/scripts/rag_indexes/cli.py` を呼びます。取得・復元・Release操作にはPython標準ライブラリだけを使い、
+インデックスの `.sh` は `day2/scripts/rag_indexes/cli.py`、Releaseの `.sh` は `scripts/release/cli.py` を呼びます。
+GitHubのタグ・Release・添付・公開・削除は `scripts/release/cli.py` が担当し、添付前の配布物検証にはday2側の処理を利用します。
+取得・復元・Release操作にはPython標準ライブラリだけを使い、
 生成時の検索検証は `day2/scripts/rag_indexes/validate.py` がday2のuv環境で行います。
 starterへの同梱は `scripts/generate-day2-starter/include.txt` で指定します。
 `scripts/rag_indexes/download.sh` と `scripts/rag_indexes/cli.py` をday2からの相対パスで列挙し、通常のコピー処理で配置します。
@@ -117,4 +121,5 @@ starter生成時にはローカルの `data/lancedb/`・`data/cache/` をコピ�
 
 ```bash
 uv run --project day2 --frozen python -m unittest discover -s day2/scripts/rag_indexes/tests -v
+uv run --no-project --python 3.13 python -m unittest discover -s scripts/release/tests -v
 ```

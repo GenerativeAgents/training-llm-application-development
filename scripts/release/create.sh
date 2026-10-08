@@ -3,4 +3,4 @@
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-exec uv run --no-project --python 3.13 python "$script_dir/../../day2/scripts/rag_indexes/cli.py" release-create "$@"
+exec uv run --no-project --python 3.13 python "$script_dir/cli.py" create "$@"
