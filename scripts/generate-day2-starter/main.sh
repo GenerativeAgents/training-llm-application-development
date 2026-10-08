@@ -34,11 +34,17 @@ grep -vE '^[[:space:]]*(#|$)' "$INCLUDE_FILE" \
       --exclude='__pycache__/' \
       --exclude='.ipynb_checkpoints/' \
       --exclude='.DS_Store' \
+      --exclude='lancedb/' \
+      --exclude='cache/' \
       "$SRC/" "$DEST/"
 
 # 2. starter 専用の上書きファイルを適用
 if [ -d "$OVERRIDES" ]; then
   rsync -a "$OVERRIDES/" "$DEST/"
 fi
+
+# 3. 受講者用の取得スクリプトを共通実装とともに同梱する
+mkdir -p "$DEST/scripts"
+cp "$ROOT/scripts/rag_indexes_download.sh" "$ROOT/scripts/rag_indexes.py" "$DEST/scripts/"
 
 echo "OK: $DEST を $SRC から再生成しました"

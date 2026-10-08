@@ -168,5 +168,6 @@ app/agent_design_pattern/tmp/*
 !app/agent_design_pattern/tmp/.gitkeep
 
 data/lancedb/
+data/cache/
 
 .serena/

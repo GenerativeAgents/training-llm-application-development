@@ -22,6 +22,7 @@ tmp/.gitkeep
 .env.template
 .gitignore
 .python-version
+README.md
 CLAUDE.md
 Makefile
 app.py

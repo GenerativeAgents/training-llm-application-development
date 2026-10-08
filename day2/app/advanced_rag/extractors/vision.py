@@ -22,7 +22,6 @@ import base64
 import hashlib
 import io
 import json
-import os
 import sys
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -30,6 +29,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from openai import OpenAI
+
+from ..vision_config import VISION_MODEL, VISION_REASONING_EFFORT
 
 if TYPE_CHECKING:
     from PIL import Image
@@ -46,8 +47,6 @@ from .render_drawing import (
     render_sheets,
 )
 
-VISION_MODEL = os.environ.get("VISION_MODEL", "gpt-6-luna")
-VISION_REASONING_EFFORT = os.environ.get("VISION_REASONING_EFFORT", "low")
 CACHE_DIR = Path(__file__).resolve().parents[3] / "data" / "cache" / "vision"
 MAX_SIDE = 2000  # これより長い辺は縮小して送る
 WORKERS = 8  # マルチモーダル LLM の並列数
