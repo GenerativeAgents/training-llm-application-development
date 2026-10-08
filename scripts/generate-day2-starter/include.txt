@@ -22,8 +22,13 @@ tmp/.gitkeep
 .env.template
 .gitignore
 .python-version
+README.md
 CLAUDE.md
 Makefile
 app.py
 pyproject.toml
 uv.lock
+
+# --- 受講者用のインデックス取得スクリプト ---
+scripts/rag_indexes/download.sh
+scripts/rag_indexes/cli.py

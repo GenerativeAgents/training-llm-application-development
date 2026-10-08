@@ -34,6 +34,8 @@ grep -vE '^[[:space:]]*(#|$)' "$INCLUDE_FILE" \
       --exclude='__pycache__/' \
       --exclude='.ipynb_checkpoints/' \
       --exclude='.DS_Store' \
+      --exclude='lancedb/' \
+      --exclude='cache/' \
       "$SRC/" "$DEST/"
 
 # 2. starter 専用の上書きファイルを適用
