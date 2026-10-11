@@ -288,34 +288,34 @@ def sheet_lines(rows: list[Row]) -> list[Line]:
 def shape_texts(path: Path) -> tuple[dict[str, list[str]], dict[str, list[str]]]:
     """(シート名 → 図形内テキストのリスト, シート名 → グラフの行のリスト)。
 
-    関係ファイル(rels)の読み方とパスの解決は render_drawing.Package に任せる(Excel 以外のツールが書いた xlsx は、
-    属性の順番や Target の書き方(絶対パス)が違う)。
+    関係ファイル(rels)の読み方とパスの解決は render_drawing.Package(rels_part / rels / resolve)に任せる
+    (Excel 以外のツールが書いた xlsx は、属性の順番や Target の書き方(絶対パス)が違う)。
     """
     pkg = Package(path)
     result, charts = {}, {}
-    sheet_rels = pkg._rels("xl/_rels/workbook.xml.rels")
+    sheet_rels = pkg.rels("xl/_rels/workbook.xml.rels")
     for m in re.finditer(r"<sheet [^>]*/>", pkg.z.read("xl/workbook.xml").decode()):
         name = re.search(r' name="([^"]+)"', m.group(0))
         rid = re.search(r' r:id="([^"]+)"', m.group(0))
         if not (name and rid and rid.group(1) in sheet_rels):
             continue
-        sheet_part = Package._resolve("xl/workbook.xml", sheet_rels[rid.group(1)])
+        sheet_part = Package.resolve("xl/workbook.xml", sheet_rels[rid.group(1)])
         texts, chart_rows = [], []
-        for target in pkg._rels(f"{Path(sheet_part).parent}/_rels/{Path(sheet_part).name}.rels").values():
+        for target in pkg.rels(Package.rels_part(sheet_part)).values():
             if "drawings/drawing" not in target:
                 continue
-            drawing = Package._resolve(sheet_part, target)
+            drawing = Package.resolve(sheet_part, target)
             if drawing not in pkg.names:
                 continue
             root = ET.fromstring(pkg.z.read(drawing))
             texts += [t.text.strip() for t in root.iter("{%s}t" % DRAWING_NS["a"]) if t.text and t.text.strip()]
-            drawing_rels = pkg._rels(f"{Path(drawing).parent}/_rels/{Path(drawing).name}.rels")
+            drawing_rels = pkg.rels(Package.rels_part(drawing))
             for ref in root.iter("{%s}chart" % DRAWING_NS["c"]):
-                chart_part = Package._resolve(drawing, drawing_rels.get(cast(str, ref.get("{%s}id" % DRAWING_NS["r"])), ""))
+                chart_part = Package.resolve(drawing, drawing_rels.get(cast(str, ref.get("{%s}id" % DRAWING_NS["r"])), ""))
                 data = chart_data(pkg.z.read(chart_part)) if chart_part in pkg.names else None
                 if data:
                     chart_rows += chart_lines(data)
-        sheet = name.group(1).replace("&amp;", "&")
+        sheet = Package.sheet_name(name.group(1))  # openpyxl の ws.title と同じ文字にする
         if texts:
             result[sheet] = texts
         if chart_rows:

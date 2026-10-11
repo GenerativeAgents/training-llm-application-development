@@ -61,7 +61,7 @@ def rag(question: str) -> RagOutput:
         model="gpt-6-luna",
         messages=[
             {
-                "role": "system",
+                "role": "developer",
                 "content": "与えられた文書だけを根拠に、質問に答えてください。",
             },
             {"role": "user", "content": f"# 文書\n{documents}\n\n# 質問\n{question}"},
@@ -86,8 +86,10 @@ def app() -> None:
 
     question = st.text_input("質問")
     if st.button("実行") and question:
-        # .call はトレース(call)も返す。フィードバックのボタンを押すと画面が再実行されるので、結果は session_state に取っておく
-        st.session_state.output, st.session_state.call = rag.call(question)
+        # 検索と回答の作成が終わるまで、経過時間付きのスピナーを出す
+        with st.spinner("文書を検索して回答を作成しています...", show_time=True):
+            # .call はトレース(call)も返す。フィードバックのボタンを押すと画面が再実行されるので、結果は session_state に取っておく
+            st.session_state.output, st.session_state.call = rag.call(question)
 
     if "call" in st.session_state:
         output, call = st.session_state.output, st.session_state.call

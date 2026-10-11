@@ -1,3 +1,22 @@
+"""Advanced RAG の検索と回答生成(RagModel)。インデックスは build_index.py で先に作っておく。
+
+predict() は次の順に処理する。どの処理を使うかは RagModel のフィールドで切り替え、研修の段階
+(pages/part3_1_advanced_rag.py の STAGES)はその組み合わせで表す:
+
+1. 検索(search): ベクトル検索(vector)か、ベクトル検索と全文検索を RRF で混ぜる(hybrid、段階 5〜)。
+   use_collection なら、質問者が選んだ資料群(collection)に先に絞る(段階 2〜)
+2. 並べ直し(rerank): 上位のチャンクを LLM が 1 件ずつ採点し、点の順に並べ直す(llm、段階 6〜)
+3. 選択(select): LLM に渡すチャンクを、上位 top_k 件か、並べ直しの点が閾値以上のもので選ぶ(score、段階 8)
+4. 拡張(expand): 選んだチャンクに、同じ区切りのほかのチャンクと、手順の途中から始まっていれば手前のチャンクを足す
+   (unit+steps、段階 8)
+5. 回答: system prompt(段階 7 で IMPROVED_PROMPT と資料群ごとの説明に置き換える)とチャンクを渡して答えさせる
+
+retrieve() は 1〜4 だけを行う。predict() は答えと一緒に、渡したチャンク(contexts)と検索の順位(ranked_ids)も返し、
+評価(notebooks/part3_1_eval.ipynb)はそれで検索の良し悪しも測る。
+
+    uv run python -m app.advanced_rag.rag "プロジェクト登録画面の入力項目は?"
+"""
+
 import json
 import os
 import sys
@@ -10,10 +29,9 @@ import numpy.typing as npt
 import weave
 from dotenv import load_dotenv
 from openai import OpenAI
+from openai.types.shared import ReasoningEffort
 from pydantic import BaseModel
-from weave.trace.util import (
-    ContextAwareThreadPoolExecutor,  # スレッドの中の op も predict の子として記録する
-)
+from weave.trace.util import ContextAwareThreadPoolExecutor  # スレッドの中の op も predict の子として記録する
 
 from . import fulltext
 
@@ -25,7 +43,8 @@ DB_DIR = DATA_DIR / "lancedb"
 # 研修では全員が同時に評価を回すので、レートリミット(429)に当たってもリトライして待つ(デフォルトは 2 回)
 client = OpenAI(max_retries=10)
 
-SYSTEM_PROMPT = (
+# 段階 1〜6 の回答用の system prompt(RagModel の既定)
+BASIC_PROMPT = (
     "あなたは、システム開発の設計書、ソフトウェアの操作手順書、行政機関の資料について質問に答えるアシスタントです。"
     "与えられた文書だけを根拠に答えてください。"
     "文書は検索で取り出したチャンクで、質問と関係の無いものも混ざっています。"
@@ -36,23 +55,21 @@ SYSTEM_PROMPT = (
     "簡潔に答えてください。"
 )
 
-# 段階 7: チャンクにある情報を省略・脚色せずに使わせる規則を足す(資料の種類によらない書き方にする)
-RULES_PROMPT = SYSTEM_PROMPT.removesuffix("簡潔に答えてください。") + (
-    "文言・メッセージ・名称・値そのものを聞かれたら、文書にある表記のまま、省略せずに全部書いてください。"
-    "1 つの文言が文書の中で複数の行に分かれて書かれていることがあります。"
-    "項目の列挙、手順、処理の流れを聞かれたら、文書にある項目や段階を途中も含めて漏れなく挙げてください。"
-    "文書に書かれていない項目や関係(矢印の向き、遷移、順序など)を推測で足さないでください。"
-    "前置きや言い換えは省いて簡潔に答えてください。ただし答えの中身は省かないでください。"
-)
-
-# RULES_PROMPT に加えて、答える前に根拠の行を抜き書きさせる。判定には answer だけを渡す
-EVIDENCE_PROMPT = RULES_PROMPT + (
-    "まず、質問に関係する行を文書からそのまま evidence に抜き書きし(関係する行はすべて。途中の段階や続きの行も含める)、"
-    "そのあとで抜き書きをもとに回答を answer に書いてください。"
+# 段階 7 で BASIC_PROMPT と置き換える。チャンクにある情報を省略・脚色せずに使わせる規則を入れる(資料の種類によらない書き方にする)。
+# どういう資料かは資料群ごとの説明(COLLECTION_PROMPTS)に任せるので、役割の文から資料の種類を外す
+IMPROVED_PROMPT = (
+    "あなたは、検索で取り出した文書をもとに質問に答えるアシスタントです。"
+    "文書には質問と関係の無いものも混ざっています。"
+    "文書に書かれていることだけを根拠に答え、書かれていない項目や関係を推測で足さないでください。"
+    "答えに要る情報が複数の文書に分かれていれば、組み合わせて答えてください。"
+    "手順・処理の流れ・項目の列挙を聞かれたら、途中の段階も含めて漏れなく挙げてください。"
+    "文書に手がかりがまったく無いときだけ「分かりません」と答えてください。"
+    "前置きは省いて簡潔に答えてください。ただし答えの中身は省かないでください。"
 )
 
 # 資料群(collection)ごとに、どういう資料で、チャンクがどう書かれていて、答えをどう書くかを system prompt に足す。
-# 資料群の性質から書き、評価の設問からは逆算しない。質問者が資料群を選んだとき(use_collection)だけ使う
+# 資料群の性質から書き、評価の設問からは逆算しない。質問者が資料群を選んだとき(use_collection)だけ使う。
+# system prompt(IMPROVED_PROMPT)は置き換えだが、これは質問ごとに選んだ資料群の分を predict() で末尾に足す
 COLLECTION_PROMPTS = {
     "システム開発": (
         "この資料群は、業務システム(Web 画面・バッチ・API)の開発で作られた設計書一式です。"
@@ -61,7 +78,8 @@ COLLECTION_PROMPTS = {
         "シート上の図や貼られた画面キャプチャの内容は「図の説明:」の行で書かれています。"
         "1 つの機能の仕様が複数の設計書に分かれて書かれていることがあります。"
         "単体テスト仕様書は設計書の内容を確かめる文書なので、設計書に書かれていればそちらを根拠にしてください。"
-        "画面 ID・機能 ID・テーブルやカラムの物理名・コード値・メッセージは、文書の表記のまま書いてください。"
+        "画面 ID・機能 ID・テーブルやカラムの物理名・コード値・メッセージは、該当する行をすべて、文書の表記のまま書いてください。"
+        "1 つのメッセージが複数の行に分かれて書かれていることがあります。"
     ),
     "LibreOffice研修テキスト": (
         "この資料群は、オフィスソフト LibreOffice の操作を画面キャプチャ付きで説明する研修テキスト(PDF)です。"
@@ -85,18 +103,6 @@ COLLECTION_PROMPTS = {
     ),
 }
 
-# eval.py --prompt の名前 → RagModel の属性。answer_format が text なら回答をそのまま、evidence なら Structured Outputs の answer を使う
-PROMPTS: dict[str, dict[str, Any]] = {
-    "base": {"system_prompt": SYSTEM_PROMPT, "answer_format": "text"},
-    "rules": {"system_prompt": RULES_PROMPT, "answer_format": "text"},
-    "evidence": {"system_prompt": EVIDENCE_PROMPT, "answer_format": "evidence"},
-    "collection": {
-        "system_prompt": RULES_PROMPT,
-        "answer_format": "text",
-        "collection_prompts": COLLECTION_PROMPTS,
-    },
-}
-
 
 RERANK_PROMPT = (
     "検索で取り出した文書のチャンクが、質問に答えるのにどれだけ役立つかを 0〜10 の整数で score に採点します。"
@@ -118,9 +124,7 @@ MIDWAY_PROMPT = "文書のチャンクを 1 つ渡します。" + MIDWAY_RULE
 NO_STEP_BACK_SUFFIXES = (".xlsx",)
 EXPAND_COLUMNS = ["id", "title", "text", "collection", "file", "sheet", "unit", "seq"]
 
-RERANK_WORKERS = (
-    8  # 1 問の採点を並列に投げる数(Evaluation も問題ごとに並列なので控えめにする)
-)
+RERANK_WORKERS = 8  # 1 問の採点を並列に投げる数(Evaluation も問題ごとに並列なので控えめにする)
 
 
 # LLM に返させる JSON の形。Structured Outputs で、必ずこの形で返ってくる
@@ -135,11 +139,6 @@ class ScoreMidway(BaseModel):
 
 class Midway(BaseModel):
     starts_midway: bool
-
-
-class EvidenceAnswer(BaseModel):
-    evidence: list[str]
-    answer: str
 
 
 def load_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -163,9 +162,7 @@ def embed(texts: list[str], model: str) -> npt.NDArray[np.float64]:
     return vectors / np.linalg.norm(vectors, axis=1, keepdims=True)
 
 
-_tables: dict[
-    str, lancedb.table.Table
-] = {}  # 開いたテーブルのキャッシュ(index → テーブル)
+_tables: dict[str, lancedb.table.Table] = {}  # 開いたテーブルのキャッシュ(index → テーブル)
 
 
 def table_name(index: str) -> str:
@@ -198,15 +195,16 @@ def index_meta(index: str) -> dict[str, str]:
 def get_table(index: str, embedding_model: str) -> lancedb.table.Table:
     """build_index.py で作った LanceDB テーブルを開く。無ければエラーにする(ここでは作らない)。
 
-    質問側と同じ埋め込みモデルで作られていないと検索結果が無意味になるので、メタ情報と突き合わせる。
+    質問側と同じ埋め込みモデルで作られていないと検索結果が無意味になるので、メタ情報と突き合わせる
+    (別の埋め込みモデルの RagModel から呼ばれることもあるので、キャッシュ済みでも毎回確かめる)。
     """
+    built_with = index_meta(index)["embedding_model"]
+    if built_with != embedding_model:
+        raise RuntimeError(
+            f"インデックス {index} は {built_with} で作られています({embedding_model} で検索しようとしている)。"
+            f"uv run python -m app.advanced_rag.build_index --extractor {index} --embedding-model {embedding_model} で作り直してください"
+        )
     if index not in _tables:
-        built_with = index_meta(index)["embedding_model"]
-        if built_with != embedding_model:
-            raise RuntimeError(
-                f"インデックス {index} は {built_with} で作られています({embedding_model} で検索しようとしている)。"
-                f"uv run python -m app.advanced_rag.build_index --extractor {index} --embedding-model {embedding_model} で作り直してください"
-            )
         _tables[index] = lancedb.connect(DB_DIR).open_table(table_name(index))
     return _tables[index]
 
@@ -217,24 +215,11 @@ class RagModel(weave.Model):
     embedding_model: str = "text-embedding-3-small"
     top_k: int = 5
     use_collection: bool = False  # true なら検索対象を collection(data/corpus/ 直下のフォルダ = 資料群)に限定する
-    system_prompt: str = SYSTEM_PROMPT
-    answer_format: str = "text"  # text(回答をそのまま)/ evidence(Structured Outputs の evidence と answer。system prompt も合わせる)
-    collection_prompts: dict[
-        str, str
-    ] = {}  # collection → system prompt に足す資料群の説明(use_collection のときだけ使う)
-    reasoning_effort: str | None = (
-        "low"  # 推論モデル(gpt-5 以降)のときだけ指定する。None なら送らない
-    )
-    rank_depth: int = (
-        50  # 診断用に、この順位までの文書 ID を記録する(LLM に渡すのは top_k 件だけ)
-    )
-    search: str = (
-        "vector"  # vector(ベクトル検索)/ fts(全文検索)/ hybrid(両方を RRF で混ぜる)
-    )
-    fts_fields: list[str] = [
-        "morph",
-        "bigram",
-    ]  # 全文検索で見る列(fulltext.COLUMNS のキー)。複数なら点を足す
+    system_prompt: str = BASIC_PROMPT
+    collection_prompts: dict[str, str] = {}  # collection → system prompt に足す資料群の説明(use_collection のときだけ使う)
+    reasoning_effort: ReasoningEffort = "low"
+    rank_depth: int = 50  # 診断用に、この順位までの文書 ID を記録する(LLM に渡すのは選んだチャンクだけ)
+    search: str = "vector"  # vector(ベクトル検索)/ hybrid(ベクトル検索と全文検索を RRF で混ぜる)
     rrf_k: int = 5  # RRF の k。1 / (k + 順位) の和で並べる。小さいほど各検索の上位が強く効く(よく使われる値は 60)
     rerank: str = "none"  # none / llm(検索の上位 rerank_depth 件を LLM が 1 件ずつ採点し、点の順に並べ直す)
     rerank_depth: int = 20  # 並べ直す候補の数。これより下の順位はそのまま後ろに付ける
@@ -242,7 +227,7 @@ class RagModel(weave.Model):
     score_threshold: int = 7
     min_selected: int = 1  # score で選ぶとき、閾値以上がこれより少なければ上位から補う
     max_selected: int = 5  # score で選ぶときの上限(広げる前の件数)
-    expand: str = "none"  # none / unit(同じ区切りのほかのチャンクも渡す)/ unit+steps(さらに、区切りが手順の途中から始まっていれば手前のチャンクも)
+    expand: str = "none"  # none / unit+steps(同じ区切りのほかのチャンクと、区切りが手順の途中から始まっていれば手前のチャンクも渡す)
     max_back: int = 2  # unit+steps で手前にさかのぼるチャンクの数の上限
     max_context_chars: int = 20000  # 広げるときの、渡すチャンクの文字数の合計の上限(選んだチャンクそのものは必ず渡す)
 
@@ -257,18 +242,11 @@ class RagModel(weave.Model):
         res = client.chat.completions.parse(
             model=self.chat_model,
             messages=[
-                {"role": "system", "content": RERANK_PROMPT},
-                {
-                    "role": "user",
-                    "content": f"# 質問\n{question}\n\n# チャンク: {title}\n{text}",
-                },
+                {"role": "developer", "content": RERANK_PROMPT},
+                {"role": "user", "content": f"# 質問\n{question}\n\n# チャンク: {title}\n{text}"},
             ],
             response_format=Score,
-            **(
-                {"reasoning_effort": self.reasoning_effort}
-                if self.reasoning_effort
-                else {}
-            ),
+            reasoning_effort=self.reasoning_effort,
         )
         return res.choices[0].message.parsed.score
 
@@ -278,18 +256,11 @@ class RagModel(weave.Model):
         res = client.chat.completions.parse(
             model=self.chat_model,
             messages=[
-                {"role": "system", "content": RERANK_MIDWAY_PROMPT},
-                {
-                    "role": "user",
-                    "content": f"# 質問\n{question}\n\n# チャンク: {title}\n{text}",
-                },
+                {"role": "developer", "content": RERANK_MIDWAY_PROMPT},
+                {"role": "user", "content": f"# 質問\n{question}\n\n# チャンク: {title}\n{text}"},
             ],
             response_format=ScoreMidway,
-            **(
-                {"reasoning_effort": self.reasoning_effort}
-                if self.reasoning_effort
-                else {}
-            ),
+            reasoning_effort=self.reasoning_effort,
         )
         return res.choices[0].message.parsed.model_dump()
 
@@ -299,15 +270,11 @@ class RagModel(weave.Model):
         res = client.chat.completions.parse(
             model=self.chat_model,
             messages=[
-                {"role": "system", "content": MIDWAY_PROMPT},
+                {"role": "developer", "content": MIDWAY_PROMPT},
                 {"role": "user", "content": f"# チャンク: {title}\n{text}"},
             ],
             response_format=Midway,
-            **(
-                {"reasoning_effort": self.reasoning_effort}
-                if self.reasoning_effort
-                else {}
-            ),
+            reasoning_effort=self.reasoning_effort,
         )
         return res.choices[0].message.parsed.starts_midway
 
@@ -317,20 +284,16 @@ class RagModel(weave.Model):
         expand が unit+steps なら、同じ呼び出しで手順の途中から始まっているか(starts_midway)も付ける。
         """
         head, tail = hits[: self.rerank_depth], hits[self.rerank_depth :]
-        if self.expand == "unit+steps":
-            judge = lambda h: self.rerank_score_midway(question, h["title"], h["text"])
-        else:
-            judge = lambda h: {
-                "score": self.rerank_score(question, h["title"], h["text"])
-            }
+
+        def judge(h: dict[str, Any]) -> dict[str, Any]:
+            if self.expand == "unit+steps":
+                return self.rerank_score_midway(question, h["title"], h["text"])
+            return {"score": self.rerank_score(question, h["title"], h["text"])}
+
         with ContextAwareThreadPoolExecutor(RERANK_WORKERS) as pool:
             got = list(pool.map(judge, head))
-        order = sorted(
-            range(len(head)), key=lambda i: -got[i]["score"]
-        )  # sorted は安定なので同点は元の順
-        return [
-            head[i] | got[i] | {"score": float(got[i]["score"])} for i in order
-        ] + tail
+        order = sorted(range(len(head)), key=lambda i: -got[i]["score"])  # sorted は安定なので同点は元の順
+        return [head[i] | got[i] | {"score": float(got[i]["score"])} for i in order] + tail
 
     def _select(self, hits: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """LLM に渡すチャンクを選ぶ。top_k なら上位 top_k 件、score なら並べ直しの点が閾値以上(min〜max 件)。"""
@@ -339,21 +302,15 @@ class RagModel(weave.Model):
         if self.select != "score":
             raise ValueError(f"select は top_k / score のどれか: {self.select!r}")
         if self.rerank != "llm":
-            raise ValueError(
-                "select=score は rerank=llm のときだけ使える(並べ直しの点で選ぶため)"
-            )
+            raise ValueError("select=score は rerank=llm のときだけ使える(並べ直しの点で選ぶため)")
         scored = hits[: self.rerank_depth]
-        chosen = [h for h in scored if h["score"] >= self.score_threshold][
-            : self.max_selected
-        ]
-        return (
-            chosen if len(chosen) >= self.min_selected else scored[: self.min_selected]
-        )
+        chosen = [h for h in scored if h["score"] >= self.score_threshold][: self.max_selected]
+        return chosen if len(chosen) >= self.min_selected else scored[: self.min_selected]
 
     def _expand(
         self, table: lancedb.table.Table, selected: list[dict[str, Any]], judged: dict[str, bool]
     ) -> list[dict[str, Any]]:
-        """選んだチャンクを、同じ区切りのほかのチャンク(と、unit+steps なら手前のチャンク)まで広げる。
+        """選んだチャンクを、同じ区切りのほかのチャンクと手前のチャンクまで広げる。
 
         選んだチャンクごとに 1 つのまとまり(group)にし、まとまりの中はファイルの中の順(seq)に並べる。
         同じ区切りのチャンクは、選んだチャンクに近い順に max_context_chars まで足す。区切りの先頭のチャンクが手順・列挙の途中から
@@ -362,13 +319,7 @@ class RagModel(weave.Model):
         """
 
         def rows(where: str) -> list[dict[str, Any]]:
-            return (
-                table.search()
-                .where(where)
-                .select(EXPAND_COLUMNS)
-                .limit(10000)
-                .to_list()
-            )
+            return table.search().where(where).select(EXPAND_COLUMNS).limit(10000).to_list()
 
         included: set[str] = set()
         size = 0
@@ -381,21 +332,14 @@ class RagModel(weave.Model):
             size += len(hit["text"])
             unit = rows(f"file = {quote(hit['file'])} AND unit = {quote(hit['unit'])}")
             for row in sorted(unit, key=lambda r: abs(r["seq"] - hit["seq"])):
-                if (
-                    row["id"] in included
-                    or size + len(row["text"]) > self.max_context_chars
-                ):
+                if row["id"] in included or size + len(row["text"]) > self.max_context_chars:
                     continue
                 group.append(row | {"role": "unit"})
                 included.add(row["id"])
                 size += len(row["text"])
-            if self.expand == "unit+steps" and not hit["file"].endswith(
-                NO_STEP_BACK_SUFFIXES
-            ):
+            if not hit["file"].endswith(NO_STEP_BACK_SUFFIXES):
                 first = min(unit, key=lambda r: r["seq"])
-                current = (
-                    first if first["id"] in included else None
-                )  # 区切りの先頭を渡していなければさかのぼらない
+                current = first if first["id"] in included else None  # 区切りの先頭を渡していなければさかのぼらない
                 for _ in range(self.max_back):
                     if current is None:
                         break
@@ -404,9 +348,7 @@ class RagModel(weave.Model):
                         midway = self.starts_midway(current["title"], current["text"])
                     if not midway:
                         break
-                    before = rows(
-                        f"file = {quote(current['file'])} AND seq = {current['seq'] - 1}"
-                    )
+                    before = rows(f"file = {quote(current['file'])} AND seq = {current['seq'] - 1}")
                     if (
                         not before
                         or before[0]["id"] in included
@@ -424,11 +366,7 @@ class RagModel(weave.Model):
         self, table: lancedb.table.Table, question: str, where: str | None, depth: int
     ) -> list[dict[str, Any]]:
         query = embed([question], self.embedding_model)[0]
-        search = (
-            table.search(query, vector_column_name="vector")
-            .distance_type("cosine")
-            .limit(depth)
-        )
+        search = table.search(query, vector_column_name="vector").distance_type("cosine").limit(depth)
         if where:
             search = search.where(where, prefilter=True)
         # score はコサイン類似度(1 - cosine 距離)
@@ -437,31 +375,23 @@ class RagModel(weave.Model):
     def _fts_hits(
         self, table: lancedb.table.Table, question: str, where: str | None, depth: int
     ) -> list[dict[str, Any]]:
-        query = fulltext.query(self.pos_keywords(question), self.fts_fields)
+        query = fulltext.query(self.pos_keywords(question))
         if query is None:
             return []
         search = table.search(query, query_type="fts").limit(depth)
         if where:
             search = search.where(where, prefilter=True)
-        return [
-            h | {"score": float(h["_score"])} for h in search.to_list()
-        ]  # score は BM25
+        return [h | {"score": float(h["_score"])} for h in search.to_list()]  # score は BM25
 
     @weave.op
     def retrieve(self, question: str, collection: str | None = None) -> dict[str, Any]:
-        """上位 top_k 件のチャンク(contexts)と、上位 rank_depth 件の ID(ranked_ids、正解の順位の診断用)を返す。"""
+        """LLM に渡すチャンク(contexts。select と expand で選んだもの)と、上位 rank_depth 件の ID(ranked_ids、正解の順位の診断用)を返す。"""
         table = get_table(self.index, self.embedding_model)
         depth = max(self.top_k, self.rank_depth)
         # 文書の collection 列(メタデータ)で先に絞ってから、その中で検索する(prefilter)
-        where = (
-            f"collection = {quote(collection)}"
-            if self.use_collection and collection
-            else None
-        )
+        where = f"collection = {quote(collection)}" if self.use_collection and collection else None
         if self.search == "vector":
             hits = self._vector_hits(table, question, where, depth)
-        elif self.search == "fts":
-            hits = self._fts_hits(table, question, where, depth)
         elif self.search == "hybrid":
             # 各検索の上位 depth 件を、順位だけで混ぜる(RRF)。score は RRF の値
             lists = [
@@ -473,38 +403,29 @@ class RagModel(weave.Model):
             for hits_ in lists:
                 for rank, h in enumerate(hits_, 1):
                     docs.setdefault(h["id"], h)
-                    scores[h["id"]] = scores.get(h["id"], 0.0) + 1.0 / (
-                        self.rrf_k + rank
-                    )
-            hits = [
-                docs[i] | {"score": scores[i]}
-                for i in sorted(scores, key=lambda i: -scores[i])
-            ][:depth]
+                    scores[h["id"]] = scores.get(h["id"], 0.0) + 1.0 / (self.rrf_k + rank)
+            hits = [docs[i] | {"score": scores[i]} for i in sorted(scores, key=lambda i: -scores[i])][:depth]
         else:
-            raise ValueError(
-                f"search は vector / fts / hybrid のどれか: {self.search!r}"
-            )
+            raise ValueError(f"search は vector / hybrid のどれか: {self.search!r}")
         if self.rerank == "llm":
             hits = self._rerank(question, hits)
         elif self.rerank != "none":
             raise ValueError(f"rerank は none / llm のどれか: {self.rerank!r}")
         selected = self._select(hits)
-        if self.expand in ("unit", "unit+steps"):
+        if self.expand == "unit+steps":
             judged = {h["id"]: h["starts_midway"] for h in hits if "starts_midway" in h}
             selected = self._expand(table, selected, judged)
         elif self.expand != "none":
-            raise ValueError(
-                f"expand は none / unit / unit+steps のどれか: {self.expand!r}"
-            )
-        drop = {
-            "vector",
-            "_distance",
-            "_score",
-            "_relevance_score",
-            *fulltext.ALL_COLUMNS,
-        }
+            raise ValueError(f"expand は none / unit+steps のどれか: {self.expand!r}")
+        drop = {"vector", "_distance", "_score", *fulltext.ALL_COLUMNS}  # 検索用の列と LanceDB が付ける距離・点は渡さない
         contexts = [{k: v for k, v in h.items() if k not in drop} for h in selected]
         return {"contexts": contexts, "ranked_ids": [h["id"] for h in hits]}
+
+    def system_prompt_for(self, collection: str | None) -> str:
+        """回答用に LLM に渡す system prompt。資料群の説明があれば、system_prompt の末尾に足す。"""
+        if self.use_collection and collection in self.collection_prompts:
+            return self.system_prompt + "\n\n# 資料群について\n" + self.collection_prompts[collection]
+        return self.system_prompt
 
     @weave.op
     def predict(self, question: str, collection: str | None = None) -> dict[str, Any]:
@@ -516,55 +437,29 @@ class RagModel(weave.Model):
         for n, c in enumerate(contexts):
             blocks.setdefault(c.get("group", n), []).append(c)
         titles = {
-            g: cs[0]["title"]
-            if len(cs) == 1
-            else cs[0]["title"].rpartition(" / ")[0]
-            + " / "
-            + ", ".join(dict.fromkeys(c["unit"] for c in cs))
+            g: cs[0]["title"] if len(cs) == 1
+            else cs[0]["title"].rpartition(" / ")[0] + " / " + ", ".join(dict.fromkeys(c["unit"] for c in cs))
             for g, cs in blocks.items()
         }
-        context_text = "\n\n".join(
-            f"## {titles[g]}\n" + "\n".join(c["text"] for c in cs)
-            for g, cs in blocks.items()
-        )
-        system_prompt = self.system_prompt
-        if self.use_collection and collection in self.collection_prompts:
-            system_prompt += (
-                "\n\n# 資料群について\n" + self.collection_prompts[collection]
-            )
-        request = {
-            "model": self.chat_model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {
-                    "role": "user",
-                    "content": f"# 文書\n{context_text}\n\n# 質問\n{question}",
-                },
+        context_text = "\n\n".join(f"## {titles[g]}\n" + "\n".join(c["text"] for c in cs) for g, cs in blocks.items())
+        res = client.chat.completions.create(
+            model=self.chat_model,
+            messages=[
+                {"role": "developer", "content": self.system_prompt_for(collection)},
+                {"role": "user", "content": f"# 文書\n{context_text}\n\n# 質問\n{question}"},
             ],
-            **(
-                {"reasoning_effort": self.reasoning_effort}
-                if self.reasoning_effort
-                else {}
-            ),
-        }
-        output = {"contexts": contexts, "ranked_ids": retrieved["ranked_ids"]}
-        if self.answer_format == "text":
-            res = client.chat.completions.create(**request)
-            return {"answer": res.choices[0].message.content, **output}
-        if self.answer_format == "evidence":
-            res = client.chat.completions.parse(
-                **request, response_format=EvidenceAnswer
-            )
-            parsed = res.choices[0].message.parsed
-            return {"answer": parsed.answer, **output, "evidence": parsed.evidence}
-        raise ValueError(
-            f"answer_format は text / evidence のどれか: {self.answer_format!r}"
+            reasoning_effort=self.reasoning_effort,
         )
+        return {
+            "answer": res.choices[0].message.content,
+            "contexts": contexts,
+            "ranked_ids": retrieved["ranked_ids"],
+        }
 
 
 if __name__ == "__main__":
-    weave.init(os.environ["WANDB_PROJECT"])
-    question = sys.argv[1] if len(sys.argv) > 1 else "顧客検索APIのHTTPメソッドは?"
+    weave.init(PROJECT)
+    question = sys.argv[1] if len(sys.argv) > 1 else "プロジェクト登録画面の入力項目は?"
     output = RagModel().predict(question)
     print("Q:", question)
     print("A:", output["answer"])

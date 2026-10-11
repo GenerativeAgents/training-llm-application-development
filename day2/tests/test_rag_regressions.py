@@ -96,15 +96,15 @@ class DrawingTest(unittest.TestCase):
 class SlideTest(unittest.TestCase):
     def test_descriptions_without_text_and_after_last_line(self):
         line = ((0, 0, 10, 10), ("本文", "heading"))
-        descriptions = json.dumps(
-            {
-                "items": [
-                    {"after": 99, "text": "末尾の説明"},
-                    {"after": 1, "text": "行の説明"},
-                    {"after": 0, "text": "別の末尾説明"},
-                ]
-            }
-        )
+        descriptions = vision.Figure(
+            arrows=[],
+            pairs=[],
+            facts=[
+                vision.Fact(text="末尾の説明", after=99),
+                vision.Fact(text="行の説明", after=1),
+                vision.Fact(text="別の末尾説明", after=0),
+            ],
+        ).model_dump_json()
         with (
             patch.object(
                 slides,
@@ -114,7 +114,7 @@ class SlideTest(unittest.TestCase):
             patch.object(
                 slides, "render_slides", return_value={"空": None, "本文あり": None}
             ),
-            patch.object(slides, "collect_slide"),
+            patch.object(slides, "collect_slide", return_value=[]),
             patch.object(slides, "boxed_lines", side_effect=[[], [line]]),
             patch.object(
                 vision,
@@ -125,11 +125,37 @@ class SlideTest(unittest.TestCase):
             sections = slides.sections_vision(Path("test.pptx"))
         self.assertEqual(
             sections[0][1],
-            vision.description_lines("末尾の説明\n行の説明\n別の末尾説明"),
+            [("図の説明: 末尾の説明", ""), ("図の説明: 行の説明", ""), ("図の説明: 別の末尾説明", "")],
         )
         self.assertEqual(
             sections[1][1],
-            [line[1]] + vision.description_lines("行の説明\n末尾の説明\n別の末尾説明"),
+            [line[1], ("図の説明: 行の説明", ""), ("図の説明: 末尾の説明", ""), ("図の説明: 別の末尾説明", "")],
+        )
+
+    def test_figure_lines_fixes_reversed_arrows_and_summarizes_incoming(self):
+        figure = vision.Figure(
+            arrows=[
+                vision.Arrow(source="本社 [HQ]", target="支社", label="申請", bidirectional=False, after=0),
+                vision.Arrow(source="国", target="支社", label="通達", bidirectional=False, after=0),
+                vision.Arrow(source="支社", target="本社 [HQ]", label="連絡", bidirectional=True, after=0),
+            ],
+            pairs=[vision.Pair(upper="本社", lower="東日本", after=0)],
+            facts=[vision.Fact(text="  説明  文 ", after=0)],
+        ).model_dump_json()
+        xml_arrows = [{"source": "支社", "target": "本社", "label": "", "bidirectional": False, "p0": (0, 0), "p1": (0, 1)}]
+        lines = [text for _, text in vision.figure_lines(figure, xml_arrows)]
+        self.assertEqual(
+            lines,
+            [
+                "図の説明: 説明 文",
+                "図の説明: 支社 --申請--> 本社 [HQ]",  # XML の向きに直る(名前は空白・括弧を除いて含んでいれば同じ)
+                "図の説明: 国 --通達--> 支社",
+                "図の説明: 支社 --連絡--> 本社 [HQ]",
+                "図の説明: 本社 [HQ] --連絡--> 支社",
+                "図の説明: 本社 [HQ] に入る矢印の元: 支社(申請) / 支社(連絡)",
+                "図の説明: 支社 に入る矢印の元: 国(通達) / 本社 [HQ](連絡)",
+                "図の説明: 本社 の下は 東日本",
+            ],
         )
 
 
@@ -178,7 +204,7 @@ class IndexTest(unittest.TestCase):
                 self.assertEqual(
                     rag.index_meta("structured")["embedding_model"], "test-embedding"
                 )
-                for search in ("vector", "fts", "hybrid"):
+                for search in ("vector", "hybrid"):
                     model = rag.RagModel(
                         search=search,
                         use_collection=True,
@@ -188,7 +214,7 @@ class IndexTest(unittest.TestCase):
                         with self.subTest(search=search, collection=collection):
                             result = model.retrieve("顧客検索", collection)
                             self.assertEqual(result["ranked_ids"], [str(i)])
-                    model.expand = "unit"
+                    model.expand = "unit+steps"
                     self.assertEqual(
                         model.retrieve("顧客検索", collections[0])["contexts"][0]["id"],
                         "0",

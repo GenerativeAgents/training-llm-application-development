@@ -6,9 +6,9 @@
 - basic(basic.py): Microsoft markitdown の素の出力。図形の XML 出現順(= 重なり順)なので、右上の注記が題より先に出るなど読み順が崩れる
 - structured(extract): render_drawing.Collector で図形を位置つきで集め、上から下・左から右に並べ直す。
   表は行ごとに ` | ` で連結。グラフは題と系列ごとの値の行(`系列名: 項目 値 / …`)にする。矢印の向きは落ちる
-- vision: 上に加えて、スライドを render_drawing.py で PNG にし、structured の行(図形の枠の座標付き)と一緒にマルチモーダル LLM に渡す。
-  図形の文字は書き写させず、矢印・入れ子・配置で表された関係だけを 1 事実 1 行の JSON で返させ、
-  指定された行の後ろに `図の説明:` 行として差し込む(pdf.py の vision と同じやり方)
+- vision: 上に加えて、スライドを render_drawing.py で PNG にし、structured の行(図形の枠の座標付き)と、XML から確定した
+  矢印の一覧(arrows.py)を一緒にマルチモーダル LLM に渡す。図形の文字は書き写させず、矢印・入れ子・配置で表された関係を
+  vision.Figure の JSON で返させ、vision.figure_lines が組み立てた `図の説明:` 行を指定された行の後ろに差し込む(pdf.py の vision と同じやり方)
 """
 
 import re
@@ -16,8 +16,9 @@ from pathlib import Path
 from typing import Any
 
 from . import Chunked, Line, Section
+from .arrows import arrows_from_items, prompt_lines
 from .chunking import chunk_sections
-from .figure_rules import OMIT, RULES
+from .figure_rules import OMIT, RULES, SCHEMA
 from .render_drawing import (
     SCALE,
     TITLE_PX,
@@ -93,6 +94,10 @@ def sections(path: Path) -> list[Section]:
     return [(name, slide_lines(collect_slide(pres, part))) for name, part in pres.slides]
 
 
+def extract(path: Path) -> list[Chunked]:
+    return chunk_sections(sections(path))
+
+
 # --- vision -------------------------------------------------------------------------------------
 
 PROMPT = f"""これはプレゼンテーション資料の 1 スライドを画像にしたものと、スライドの図形から取り出した文字の行です。
@@ -109,27 +114,24 @@ PROMPT = f"""これはプレゼンテーション資料の 1 スライドを画�
 
 {OMIT}
 
-JSON で {{"items": [{{"after": 行番号, "text": "説明 1 行"}}, ...]}} の形で返してください。
-1 つの item には 1 つの事実だけを書き、段落にまとめないでください(矢印 1 本、所属 1 つ、対応 1 つ、画面の項目 1 つがそれぞれ 1 item)。
-after は、その説明を本文のどの行の後ろに差し込むかで、説明している図の見出し(枠の題など)の行の番号(L の後ろの数字)にします。
-図の構造や画像で表されている情報が無ければ {{"items": []}} を返してください。"""
-
-
-def extract(path: Path) -> list[Chunked]:
-    return chunk_sections(sections(path))
+{SCHEMA}
+after は、その説明を本文のどの行の後ろに差し込むかで、説明している図の見出し(枠の題など)の行の番号(L の後ろの数字)にします。"""
 
 
 def sections_vision(path: Path) -> list[Section]:
-    """スライドの画像と、図形の文字の行(画像上の座標付き)を一緒にマルチモーダル LLM に渡し、説明を指定の行の後ろに差し込む。
+    """スライドの画像と、図形の文字の行(画像上の座標付き)、XML から確定した矢印の一覧を一緒にマルチモーダル LLM に渡し、
+    説明を指定の行の後ろに差し込む。
 
     テキスト行は structured の行(slide_lines)と同じ行・同じ順なので、LLM が返す行番号がそのまま本文の行を指す。
     行番号が範囲外なら、スライドの末尾に付ける。
     """
-    from . import vision  # openai が要るので、使うときだけ読み込む
+    from . import vision  # 読み込むと OpenAI のクライアントを作る(OPENAI_API_KEY が要る)ので、使うときだけ読み込む
 
     pres = Presentation(path)
     images = render_slides(path)
-    boxed = {name: boxed_lines(collect_slide(pres, part)) for name, part in pres.slides}
+    items = {name: collect_slide(pres, part) for name, part in pres.slides}
+    boxed = {name: boxed_lines(its) for name, its in items.items()}
+    arrows = {name: arrows_from_items(its) for name, its in items.items()}
 
     def pixel(box: Box) -> list[int]:  # render_drawing と同じく、題の帯の分下げて SCALE 倍する
         x0, top, x1, bottom = box
@@ -140,17 +142,19 @@ def sections_vision(path: Path) -> list[Section]:
     for name, lines in boxed.items():
         if name in extra and not lines:
             extra[name] += "テキスト行はありません。画像内の文字は別途抽出されていないため、文字の内容も説明に含めてください。after は 0 にしてください。"
-    described = vision.describe(path, images, PROMPT, extra=extra, json_mode=True)
+        if name in extra:
+            extra[name] += prompt_lines(arrows[name])  # 矢印の向きは XML から確定して渡す
+    described = vision.describe(path, images, PROMPT, extra=extra, schema=vision.Figure)
     result = []
     for name, lines in boxed.items():
         groups: dict[int, list[str]] = {}
-        for after, text in vision.json_items(described.get(name, "")) if name in described else []:
+        for after, text in vision.figure_lines(described[name], arrows[name]) if name in described else []:
             groups.setdefault(after if 1 <= after <= len(lines) else len(lines) + 1, []).append(text)
         out: list[Line] = []
         for n, (_, line) in enumerate(lines, 1):
             out.append(line)
-            out += vision.description_lines("\n".join(groups.get(n, [])))
-        out += vision.description_lines("\n".join(groups.get(len(lines) + 1, [])))
+            out += [(text, "") for text in groups.get(n, [])]
+        out += [(text, "") for text in groups.get(len(lines) + 1, [])]
         result.append((name, out))
     return result
 

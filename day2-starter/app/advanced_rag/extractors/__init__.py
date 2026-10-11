@@ -8,7 +8,7 @@
 種別は分割時に、チャンクの先頭へ見出し・ヘッダを付け直すために使う(無ければ "" でよい)。
 チャンクの ID(`相対パス#区切り名#連番`)は ingest.py が付けるので、抽出器は区切り名を正解データの粒度に合わせるだけでよい。
 
-抽出器は研修の段階(README の「段階」)に合わせて、手をかける順に残してある:
+抽出器は研修の段階(pages/part3_1_advanced_rag.py の STAGES)に合わせて、手をかける順に残してある:
 
     uv run python -m app.advanced_rag.ingest --extractor basic        # 段階 1, 2: 汎用ツールの素のテキスト(markitdown。PDF は中身の pdfminer)を位置単位で分けるだけ
     uv run python -m app.advanced_rag.ingest --extractor structured   # 段階 3: 文書の構造に合わせて抽出・チャンキング(不要な情報の除去、ヘッダの繰り返しなど)。Vision は使わない
@@ -29,7 +29,6 @@ Extractor = Callable[[Path], list[Chunked]]
 
 from . import (  # noqa: E402  (上の定義を参照するため後置)
     basic,
-    chunking,
     pdf,
     slides,
     structured,
@@ -37,7 +36,7 @@ from . import (  # noqa: E402  (上の定義を参照するため後置)
 
 
 def _vision(path: Path) -> list[Chunked]:
-    from . import vision  # openai と Pillow が要るので、使うときだけ読み込む
+    from . import vision  # 読み込むと OpenAI のクライアントを作る(OPENAI_API_KEY が要る)ので、使うときだけ読み込む
 
     return vision.extract(path)
 

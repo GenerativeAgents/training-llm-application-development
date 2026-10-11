@@ -5,7 +5,7 @@
 - structured(extract): PDF のしおり(アウトライン)が 2 階層以上あれば、しおりの項目ごとに区切る
   (操作手順書の `1.3.3 パスワードの設定` など)。手順がページをまたいでも 1 つのチャンクに入る。
   チャンクの区切り名はそのチャンクが含むページの範囲(`page18-21`。1 ページなら `page18`)にして、
-  ページ単位の正解データ(`#page18`)と照合できるようにする(eval.py の covers)。
+  ページ単位の正解データ(`#page18`)と照合できるようにする(notebooks/part3_1_eval.ipynb の covers)。
   チャンクの先頭にはしおりの階層(`第1章 … > 1.3 ファイルの保存 > 1.3.3 パスワードの設定`)を見出しとして付け、
   目次と、しおりの題と同じ行(章名の柱)は落とす。
   しおりが無い、または 1 階層だけ(厚労省資料の「スライド N」)の PDF は、basic と同じくページで区切る。
@@ -17,8 +17,11 @@
   - 画像で潰れた文字は同じ位置のテキスト行で確かめられ、箱のラベルと矢印の対応も座標で確定しやすい。
     画面キャプチャなど貼り付けられた画像の中の文字はテキスト層に無いので、画像から読ませる
   - 貼り付け画像を切り出さないので、画像の外にある番号や引き出し線も一緒に読める
-  - 説明ごとに「どのテキスト行の後ろに入れるか」を行番号で返させ(JSON)、その行の後ろに差し込む
+  - 説明は vision.Figure の JSON(矢印・列の対応・その他の事実)で返させ、行の文面は vision.figure_lines が組み立てる。
+    説明ごとに「どのテキスト行の後ろに入れるか」を行番号(after)で返させ、その行の後ろに差し込む
     (手順の行と、その手順の画面の説明が並ぶ)。図も画像も無いページは空で返させ、差し込まない
+  - PDF には図形の情報が無いので、矢印の向きは LLM が画像から読む(xlsx / pptx は XML から確定する。arrows.py)。
+    ただし箱の列の対応(「A の下は B」)は、ベクタ描画の矩形と中の文字から確定できる(vector_pairs)ので、LLM に任せず足す
   全ページを読ませる(図のあるページを図形の数で選ぶ方法は、手順書にも枠や角丸の囲みが多く、資料によらずには決められない)
 
 章扉などの太字が文字の二重打ちで描かれていると、文字が二重になる(`第第11章章`)ので正規化する。
@@ -27,7 +30,7 @@
 import re
 from collections import Counter
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import Any, cast
 
 from pdfminer.high_level import extract_pages, extract_text
 from pdfminer.layout import LTTextLine
@@ -36,12 +39,9 @@ from pdfminer.pdfpage import PDFPage
 from pdfminer.pdfparser import PDFParser
 from pdfminer.pdftypes import resolve1
 
-if TYPE_CHECKING:
-    from PIL import Image
-
 from . import Chunked, ChunkedWithMeta
 from .chunking import split_chunks_with_index
-from .figure_rules import OMIT, RULES
+from .figure_rules import OMIT, RULES, SCHEMA
 
 HEADING_RE = re.compile(r"^(?:\d+|[A-Z])\.\d+\.\d+ \S")  # 1.3.1 基本ファイル形式での保存
 DOUBLED_RE = re.compile(r"^(?:(.)\1|\s)+$")  # 章扉の太字: 文字が 2 つずつ重なる
@@ -92,7 +92,11 @@ def _squash(text: str) -> str:
 
 
 def page_texts(path: Path) -> list[list[str]]:
-    """ページごとの行(空行を除く)。basic と同じく pdfminer の改ページ文字で分ける。"""
+    """ページごとの行(空行を除く)。basic と同じく pdfminer の改ページ文字で分ける。
+
+    pdfminer は各ページの最後に改ページ文字を出すので、末尾に空のページが 1 つ余分に付く(ページ数 + 1 要素)。
+    _outline_units は最後の項目の終端にこの空ページを使う。
+    """
     return [[line.strip() for line in text.splitlines() if line.strip()] for text in extract_text(path).split("\f")]
 
 
@@ -173,6 +177,7 @@ def _outline_units(pages: list[list[str]], items: list[tuple[int, str, int]]) ->
     for k, (level, title, _) in enumerate(items):
         path = path[: level - 1] + [title]
         start = starts[k]
+        # 最後の項目の終端は pages 末尾の空ページ(page_texts 参照)の先頭。本文のある最後のページまで全部入る
         end = starts[k + 1] if k + 1 < len(items) else (len(pages), 0)
         body = []
         for pno in range(start[0], end[0] + 1):
@@ -220,60 +225,121 @@ PAGE_PROMPT = f"""これは PDF 資料の 1 ページを画像にしたものと
 - 画面キャプチャなど貼り付けられた画像の中の文字はテキスト行に無いので、画像から読む
 
 書くこと:
-- 画面キャプチャは、先頭にどの手順・見出しの画面か(例:「手順 3 の画面」)を書く
+- 画面キャプチャは、先頭にどの手順・見出しの画面か(例:「手順 3 の画面」)を facts に書く
 {RULES}
 
 {OMIT}
 
-JSON で {{"items": [{{"after": 行番号, "text": "説明 1 行"}}, ...]}} の形で返してください。
-1 つの item には 1 つの事実だけを書き、段落にまとめないでください(画面キャプチャなら、画面名、項目 1 つ、メッセージ 1 つ、強調箇所 1 つがそれぞれ 1 item)。
-画像から読み取れることは省かずに全部書いてください。
-番号・引き出し線・吹き出しの注記は、番号と名称だけでなく、それが画面や図のどこを指しているかも書いてください。
-after は、その説明を本文のどの行の後ろに差し込むかで、説明している図や画面の直前にある、その手順や見出しの行の番号(L の後ろの数字)にします。
-図も画像も無ければ {{"items": []}} を返してください。"""
+{SCHEMA}
+after は、その説明を本文のどの行の後ろに差し込むかで、説明している図や画面の直前にある、その手順や見出しの行の番号(L の後ろの数字)にします。"""
 
 
-def page_inputs(path: Path) -> tuple[dict[str, "Image.Image"], dict[str, list[tuple[list[int], str]]]]:
-    """ページ全体の画像(`p15` → 画像)と、テキスト層の行(`p15` → (座標, 文字)のリスト)を返す。
+PAIR_GAP_PT = 80  # 上下の箱の列(pairs)とみなす、上の段の下端から下の段の上端までの距離の上限(pt)
+PAIR_TEXT_CHARS = 30  # 箱の文字数の上限。これより長いのは文の入った枠で、列の対応の箱ではない
+
+
+def _box_text(words: list[dict[str, Any]], rect: dict[str, Any]) -> str:
+    """矩形の中にある語を読み順につなぐ(日本語は空白なし、英数字どうしは空白)。"""
+    inside = sorted((w for w in words if rect["x0"] <= (w["x0"] + w["x1"]) / 2 <= rect["x1"]
+                     and rect["top"] <= (w["top"] + w["bottom"]) / 2 <= rect["bottom"]), key=lambda w: (round(w["top"]), w["x0"]))
+    text = ""
+    for w in inside:
+        text += (" " if text and text[-1].isascii() and w["text"][:1].isascii() else "") + w["text"]
+    return text
+
+
+def vector_pairs(page: Any) -> list[tuple[str, str]]:
+    """ページのベクタ描画から、箱の列の上下の対応 (上の箱の文字, 下の箱の文字) を取る。
+
+    文字の入った枠線付きの矩形を箱とし、縦の範囲が重なる箱を段にまとめる。段が 2 つ縦に並び(間隔 PAIR_GAP_PT 以内)、
+    どちらも 2 箱以上で数が同じなら、横の位置が重なる箱どうしを対応とする(「本社 | 支社」の下に
+    「東日本 | 西日本」が並ぶポンチ絵の形)。3 段以上続く表のセルは対象にしない。
+    """
+    words = page.extract_words()
+    rects = [r for r in page.rects if r.get("stroke") and 20 <= r["width"] <= 300 and 8 <= r["height"] <= 100]
+    boxes = []
+    for r in rects:
+        if any(o is not r and r["x0"] <= o["x0"] and o["x1"] <= r["x1"] and r["top"] <= o["top"] and o["bottom"] <= r["bottom"]
+               and (o["width"] < r["width"] - 1 or o["height"] < r["height"] - 1) for o in rects):
+            continue  # ほかの箱を含む枠(大枠)
+        text = _box_text(words, r)
+        if text and not any(b["x0"] == r["x0"] and b["top"] == r["top"] for b in boxes):
+            boxes.append({**r, "text": text})
+    rows: list[list[dict[str, Any]]] = []
+    for b in sorted(boxes, key=lambda b: (b["top"], b["x0"])):
+        row = next((row for row in rows if min(row[0]["bottom"], b["bottom"]) - max(row[0]["top"], b["top"]) > b["height"] / 2), None)
+        if row is None:
+            rows.append([b])
+        else:
+            row.append(b)
+    rows.sort(key=lambda row: row[0]["top"])
+    pairs = []
+    for i, (upper, lower) in enumerate(zip(rows, rows[1:])):
+        if len(upper) < 2 or len(upper) != len(lower) or lower[0]["top"] - max(b["bottom"] for b in upper) > PAIR_GAP_PT:
+            continue
+        stacked = lambda a, b: len(a) == len(b) and b[0]["top"] - max(x["bottom"] for x in a) <= PAIR_GAP_PT  # noqa: E731
+        if (i > 0 and stacked(rows[i - 1], upper)) or (i + 2 < len(rows) and stacked(lower, rows[i + 2])):
+            continue  # 3 段以上続く(表)
+        for u in upper:
+            for lo in lower:
+                if (u["x0"] <= (lo["x0"] + lo["x1"]) / 2 <= u["x1"] and max(len(u["text"]), len(lo["text"])) <= PAIR_TEXT_CHARS
+                        and max(u["width"], lo["width"]) <= 2 * min(u["width"], lo["width"])):  # 文が入った枠や幅の違う帯は箱ではない
+                    pairs.append((u["text"], lo["text"]))
+    return pairs
+
+
+def page_inputs(path: Path) -> tuple[dict[str, bytes], dict[str, list[tuple[list[int], str]]], dict[str, list[tuple[str, str]]]]:
+    """ページ全体の画像(`p15` → PNG のバイト列)、テキスト層の行(`p15` → (座標, 文字)のリスト)、箱の列の対応(`p15` → vector_pairs)を返す。
 
     画像は長い辺が vision.MAX_SIDE になる解像度で描く(送るときに縮小されない大きさ)。
+    数百ページの PDF があるので、描いた画像は Pillow のまま持たずにすぐ PNG にし(1 ページ 8MB 超 → 数百 KB)、
+    pdfplumber がページごとに溜める解析結果も捨てる(flush_cache)。8GB のマシンでも全ページを処理できるようにするため。
     行は pdfplumber の extract_text_lines の順で、プロンプトの `L番号` はこのリストの 1 始まりの番号。
     """
     import pdfplumber
 
-    from .vision import MAX_SIDE
+    from .vision import MAX_SIDE, png_bytes
 
-    images, lines = {}, {}
+    images, lines, pairs = {}, {}, {}
     with pdfplumber.open(path) as pdf:
         for pno, page in enumerate(pdf.pages, 1):
             scale = MAX_SIDE / max(page.width, page.height)
-            images[f"p{pno}"] = page.to_image(resolution=72 * scale).original
+            images[f"p{pno}"] = png_bytes(page.to_image(resolution=72 * scale).original)
             lines[f"p{pno}"] = [
                 ([round(tl[k] * scale) for k in ("x0", "top", "x1", "bottom")], tl["text"].strip())
                 for tl in page.extract_text_lines()
             ]
-    return images, lines
+            pairs[f"p{pno}"] = vector_pairs(page)
+            page.flush_cache()
+    return images, lines, pairs
 
 
 def extract_vision(path: Path) -> list[Chunked]:
-    from . import vision  # openai が要るので、使うときだけ読み込む
+    from . import vision  # 読み込むと OpenAI のクライアントを作る(OPENAI_API_KEY が要る)ので、使うときだけ読み込む
 
-    images, lines = page_inputs(path)
+    images, lines, pairs = page_inputs(path)
     extra = {key: "\n\n# テキスト行\n" + "\n".join(f"L{n} {box} {text}" for n, (box, text) in enumerate(page, 1))
              for key, page in lines.items()}
-    described = vision.describe(path, images, PAGE_PROMPT, extra=extra, json_mode=True)
+    described = vision.describe(path, images, PAGE_PROMPT, extra=extra, schema=vision.Figure)
     result = units(path)
     for key in sorted(described, key=lambda k: int(k[1:])):
         pno, page = int(key[1:]), lines[key]
         cursor = None  # そのページで前回差し込んだ説明の末尾の位置
-        items = vision.json_items(described[key])
         # 差し込む行ごとにまとめ、ページの上から順に差し込む(行番号が範囲外なら、ページの最後の行の後ろ)
         groups: dict[int, list[str]] = {}
-        for after, text in items:
+        described_lines = vision.figure_lines(described[key])
+        for after, text in described_lines:
             groups.setdefault(after if 1 <= after <= len(page) else len(page) + 1, []).append(text)
+        # 箱の列の対応は矩形から確定したものを足す(LLM が pairs に入れていなければ)。差し込み先は上の箱の文字と同じテキスト行
+        for upper, lower in pairs.get(key, []):
+            text = f"{vision.PREFIX}{upper} の下は {lower}"
+            if any(_squash(text) == _squash(t) for _, t in described_lines):
+                continue
+            at = next((n for n, (_, t) in enumerate(page, 1) if _squash(t) and _squash(upper).startswith(_squash(t))), len(page) + 1)
+            groups.setdefault(at, []).append(text)
         for after in sorted(groups):
             anchor = page[after - 1][1] if after <= len(page) else ""
-            cursor = _insert(result, pno, anchor, vision.description_lines("\n".join(groups[after])), cursor)
+            cursor = _insert(result, pno, anchor, [(text, "") for text in groups[after]], cursor)
     return _chunk_with_pages(result)
 
 

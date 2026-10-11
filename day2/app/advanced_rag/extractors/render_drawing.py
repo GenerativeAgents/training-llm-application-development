@@ -42,6 +42,7 @@ from collections.abc import Callable, Iterable, Iterator, Sequence
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, cast
+from xml.sax.saxutils import unescape
 
 import openpyxl
 from openpyxl.cell.cell import Cell as ExcelCell
@@ -69,6 +70,9 @@ EMU_PX = 9525  # 96dpi
 SCALE = 1.5  # 描画倍率(文字を読みやすく)
 TITLE_PX = 24  # 画像の上端に題(ファイル名 / シート名)を書く帯の高さ(px, 96dpi)。図形はこの分下にずらして描く
 MIN_SHAPES = 3  # これ未満のシート / スライドは描かない(表紙のロゴ枠、題だけのスライドなど)
+# 図形の位置を出すために列幅・行高を積み上げる列数・行数の上限。帳票の図形はこの範囲に収まる(全列・全行を読むと巨大なシートで遅い)。
+# これより先にアンカーされた図形は端の位置に寄せて描く(anchor_box)
+GRID_LIMIT = 400
 ELBOW_MARGIN = 20  # U 型コネクタが図形から外へ出る距離(px)
 DEFAULT_PT = 9
 
@@ -81,6 +85,7 @@ GLYPH_FALLBACK = {c: chr(0x2460 + i) for base in (0x2780, 0x278A) for i, c in en
 
 
 def find_font() -> str | None:
+    """日本語の描けるフォントファイルを fc-list で探す。無ければ None(Pillow の既定フォント。日本語は豆腐になる)。"""
     try:
         out = subprocess.run(["fc-list", ":lang=ja", "file"], capture_output=True, text=True).stdout
     except FileNotFoundError:
@@ -179,15 +184,28 @@ def open_image(data: bytes) -> Image.Image:
 
 
 class Package:
-    """OOXML の zip。関係ファイル(rels)の解決、テーマ色、メディアの取り出し。"""
+    """OOXML の zip。関係ファイル(rels)の解決、テーマ色、メディアの取り出し。
+
+    XML は正規表現と ElementTree で直接読む(openpyxl / python-pptx は図形の位置や接続情報を持たないため)。
+    """
 
     def __init__(self, path: Path) -> None:
-        self.path = path
         self.z = zipfile.ZipFile(path)
         self.names = set(self.z.namelist())
         self.theme: dict[str, str] = {}
 
-    def _rels(self, part: str) -> dict[str, str]:
+    @staticmethod
+    def rels_part(part: str) -> str:
+        """パートの関係ファイル(rels)のパス。パートと同じフォルダの `_rels/<パート名>.rels`(どのツールが書いた zip でも同じ規則)。"""
+        return f"{Path(part).parent}/_rels/{Path(part).name}.rels"
+
+    @staticmethod
+    def sheet_name(raw: str) -> str:
+        """正規表現で読んだ XML 属性のシート名を、openpyxl の ws.title と同じ文字に戻す(`&amp;` → `&` などの実体参照)。"""
+        return unescape(raw, {"&quot;": '"', "&apos;": "'"})
+
+    def rels(self, part: str) -> dict[str, str]:
+        """rels の rId → Target。part が無ければ空。"""
         if part not in self.names:
             return {}
         out = {}
@@ -199,7 +217,7 @@ class Package:
         return out
 
     @staticmethod
-    def _resolve(base: str, target: str) -> str:
+    def resolve(base: str, target: str) -> str:
         """rels の Target(パートからの相対パス、または / で始まる絶対パス)を zip 内のパス名にする。"""
         if target.startswith("/"):
             return target.lstrip("/")
@@ -222,7 +240,7 @@ class Package:
         target = rels.get(rid)
         if not target:
             return None
-        part = self._resolve(base, target)
+        part = self.resolve(base, target)
         return self.z.read(part) if part in self.names else None
 
     def color(self, node: ET.Element | None) -> str | None:
@@ -258,15 +276,17 @@ class Package:
 
 
 class Workbook(Package):
+    """xlsx。シート名 → ワークシートのパート、テーマ色、列幅の単位、openpyxl のブック(セルの値と列幅・行高)。"""
+
     def __init__(self, path: Path) -> None:
         super().__init__(path)
         wb = self.z.read("xl/workbook.xml").decode()
-        rels = self._rels("xl/_rels/workbook.xml.rels")
+        rels = self.rels(self.rels_part("xl/workbook.xml"))
         self.sheets = {}  # name -> worksheet part path
         for m in re.finditer(r"<sheet [^>]*/>", wb):
-            name = cast(re.Match[str], re.search(r'name="([^"]+)"', m.group(0))).group(1).replace("&amp;", "&")
+            name = self.sheet_name(cast(re.Match[str], re.search(r'name="([^"]+)"', m.group(0))).group(1))
             rid = cast(re.Match[str], re.search(r'r:id="([^"]+)"', m.group(0))).group(1)
-            self.sheets[name] = "xl/" + rels[rid].lstrip("/").removeprefix("xl/")
+            self.sheets[name] = self.resolve("xl/workbook.xml", rels[rid])
         self.theme = self._theme_from("xl/theme/theme1.xml")
         self.mdw = self._max_digit_width()
         self.wb = openpyxl.load_workbook(path, data_only=True)  # 列幅・行高とセルの値(数式は計算済みの値)
@@ -284,20 +304,23 @@ class Workbook(Package):
     def drawing_for(self, sheet: str) -> tuple[ET.Element, str, dict[str, str], str] | None:
         """(drawing の ElementTree root, drawing のパート名, drawing の rels, worksheet XML)。drawing が無ければ None。"""
         part = self.sheets[sheet]
-        rels = self._rels(f"xl/worksheets/_rels/{Path(part).name}.rels")
+        rels = self.rels(self.rels_part(part))
         ws_xml = self.z.read(part).decode()
         drawing = None
-        for rid, target in rels.items():
+        for target in rels.values():
             if "drawings/drawing" in target and target.endswith(".xml"):
-                drawing = self._resolve(part, target)
+                drawing = self.resolve(part, target)
         if drawing is None or drawing not in self.names:
             return None
-        drels = self._rels(f"xl/drawings/_rels/{Path(drawing).name}.rels")
+        drels = self.rels(self.rels_part(drawing))
         return ET.fromstring(self.z.read(drawing)), drawing, drels, ws_xml
 
     def checkbox_states(self, ws_xml: str, part: str) -> dict[str, str]:
-        """コントロール名 -> 'Checked' / 'Mixed' / ''(未チェック)"""
-        rels = self._rels(f"xl/worksheets/_rels/{Path(part).name}.rels")
+        """フォームコントロールのチェックボックスの状態。コントロール名 -> 'Checked' / 'Mixed' / ''(未チェック)。
+
+        状態は drawing ではなく worksheet の <control> が指す xl/ctrlProps/ に入っている。
+        """
+        rels = self.rels(self.rels_part(part))
         out = {}
         for m in re.finditer(r'<control [^>]*>', ws_xml):
             t = m.group(0)
@@ -305,7 +328,7 @@ class Workbook(Package):
             rid = re.search(r'r:id="([^"]+)"', t)
             if not (name and rid and rid.group(1) in rels):
                 continue
-            cp = self._resolve(part, rels[rid.group(1)])
+            cp = self.resolve(part, rels[rid.group(1)])
             if cp not in self.names:
                 continue
             x = self.z.read(cp).decode()
@@ -320,14 +343,16 @@ SKIP_PLACEHOLDERS = {"dt", "ftr", "sldNum"}  # 日付・フッタ・スライド
 
 
 class Presentation(Package):
+    """pptx。スライドの並び(名前 → パート)、スライドの大きさ(px)、テーマ色。"""
+
     def __init__(self, path: Path) -> None:
         super().__init__(path)
         pres = self.z.read("ppt/presentation.xml").decode()
-        rels = self._rels("ppt/_rels/presentation.xml.rels")
+        rels = self.rels(self.rels_part("ppt/presentation.xml"))
         # スライドの順序は sldIdLst(ファイル名の番号順とは限らない)
         self.slides = []  # [(名前 "slide01", パート名)]
         for i, rid in enumerate(re.findall(r'<p:sldId [^>]*r:id="([^"]+)"', pres), 1):
-            self.slides.append((f"slide{i:02d}", self._resolve("ppt/presentation.xml", rels[rid])))
+            self.slides.append((f"slide{i:02d}", self.resolve("ppt/presentation.xml", rels[rid])))
         m = re.search(r'<p:sldSz cx="(\d+)" cy="(\d+)"', pres)
         self.size = (int(m.group(1)) / EMU_PX, int(m.group(2)) / EMU_PX) if m else (960, 540)
         masters = sorted(n for n in self.names if re.match(r"ppt/slideMasters/slideMaster\d+\.xml$", n))
@@ -336,9 +361,9 @@ class Presentation(Package):
 
     def _related(self, part: str, kind: str) -> str | None:
         """part の rels から種類(slideLayout / slideMaster / theme)が kind のパートを 1 つ。"""
-        for target in self._rels(f"{Path(part).parent}/_rels/{Path(part).name}.rels").values():
+        for target in self.rels(self.rels_part(part)).values():
             if f"/{kind}" in target and target.endswith(".xml"):
-                return self._resolve(part, target)
+                return self.resolve(part, target)
         return None
 
     def placeholder_xfrm(self, part: str, ph: ET.Element) -> dict[str, Any] | None:
@@ -380,20 +405,24 @@ def cell_grid(ws: Worksheet, mdw: int = 7) -> tuple[list[float], list[float]]:
     widths = {}
     for d in ws.column_dimensions.values():
         if d.width and d.min and d.max:
-            for c in range(d.min, min(d.max, 400) + 1):
+            for c in range(d.min, min(d.max, GRID_LIMIT) + 1):
                 widths[c] = d.width
     cols = [0.0]
-    for c in range(1, 400):
+    for c in range(1, GRID_LIMIT):
         w = widths.get(c, dw)
         cols.append(cols[-1] + int((256 * w + int(128 / mdw)) / 256 * mdw))
     rows = [0.0]
-    for r in range(1, 400):
+    for r in range(1, GRID_LIMIT):
         h = ws.row_dimensions[r].height or dh
         rows.append(rows[-1] + h * 96 / 72)
     return cols, rows
 
 
 def anchor_box(a: ET.Element, cols: list[float], rows: list[float]) -> list[float]:
+    """xlsx のアンカー(twoCellAnchor / oneCellAnchor / absoluteAnchor)から図形の枠 [x, y, 幅, 高さ](px)を出す。
+
+    セル位置はセル番号 + セル内のオフセット(EMU)。GRID_LIMIT を超えるセル番号は端の位置に寄せる。
+    """
     def pt(node: ET.Element) -> Point:
         g: Callable[[str], int] = lambda k: int(cast(str, cast(ET.Element, node.find(f"xdr:{k}", NS)).text))
         return cols[min(g("col"), len(cols) - 1)] + g("colOff") / EMU_PX, rows[min(g("row"), len(rows) - 1)] + g("rowOff") / EMU_PX
@@ -614,6 +643,7 @@ THEME_INDEX = ["lt1", "dk1", "lt2", "dk2", "accent1", "accent2", "accent3", "acc
 
 
 def cell_fill(cell: ExcelCell | MergedCell, theme: dict[str, str]) -> str | None:
+    """セルの塗り色を #RRGGBB で。単色塗り以外は None。テーマ色・インデックス色は RGB にし、tint(明暗)を反映する。"""
     if not cell.fill or cell.fill.fill_type != "solid":
         return None
     fg = cell.fill.fgColor
@@ -876,6 +906,7 @@ class Collector:
 
 
 def collect(wb: Workbook, sheet: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]]] | None:
+    """シートの (図形のリスト, 値のあるセルのリスト)。drawing が無いシートは None。位置はセルのアンカーから出す(px, 96dpi)。"""
     parts = wb.drawing_for(sheet)
     if parts is None:
         return None
@@ -899,8 +930,9 @@ def collect(wb: Workbook, sheet: str) -> tuple[list[dict[str, Any]], list[dict[s
 
 
 def collect_slide(pres: Presentation, part: str) -> list[dict[str, Any]]:
+    """スライドの図形のリスト。位置は xfrm(EMU)から px にし、プレースホルダはレイアウト → マスターから継ぐ。"""
     root = ET.fromstring(pres.z.read(part))
-    rels = pres._rels(f"{Path(part).parent}/_rels/{Path(part).name}.rels")
+    rels = pres.rels(f"{Path(part).parent}/_rels/{Path(part).name}.rels")
     col = Collector("p", pres, part, rels, inherit=lambda ph: pres.placeholder_xfrm(part, ph))
     col.walk(cast(ET.Element, root.find("p:cSld/p:spTree", NS)), None, None)
     return col.items
@@ -914,14 +946,11 @@ def site_point(it: dict[str, Any], idx: int) -> tuple[Point, str]:
     x, y, w, h = it["box"]
     cx, cy = x + w / 2, y + h / 2
     if it["prst"] == "ellipse":
-        ang = -math.pi / 2 + idx * math.pi / 4  # 0 が上、時計回り
+        # 接続点はプリセット(cxnLst)の順で 0 が上、反時計回り(1=左上 2=左 3=左下 4=下 5=右下 6=右 7=右上)。
+        # 画面座標は y が下向きなので、角度を減らす向きに回す。斜めの点の向きは上下どちらかに寄せる
+        ang = -math.pi / 2 - idx * math.pi / 4
         px, py = cx + w / 2 * math.cos(ang), cy + h / 2 * math.sin(ang)
         d = ("up", "up", "left", "down", "down", "down", "right", "up")[idx % 8]
-        # 斜め方向はどちらかに寄せる
-        if idx in (1, 7):
-            d = "up"
-        if idx in (3, 5):
-            d = "down"
         return (px, py), d
     return [((cx, y), "up"), ((x, cy), "left"), ((cx, y + h), "down"), ((x + w, cy), "right")][idx % 4]
 
@@ -1013,6 +1042,8 @@ def routed_bent(p0: Point, d0: str | None, p1: Point, d1: str | None) -> list[Po
 
 
 class Canvas:
+    """描画先の画像。図形の座標(px, 96dpi)を scale 倍して画素にし、折れ線・矢じり・枠内の文字を描く。"""
+
     def __init__(self, w: float, h: float, scale: float = SCALE) -> None:
         self.scale = scale  # 描画倍率。図形の座標(px, 96dpi)にこれを掛けて画素にする
         self.im = Image.new("RGB", (int(w * scale) + 1, int(h * scale) + 1), "white")
@@ -1087,6 +1118,7 @@ class Canvas:
 
 
 def rotate_pts(seq: list[Point], box: Box, rot: float) -> list[Point]:
+    """点列を box の中心のまわりに rot 度(時計回り)回す。"""
     if not rot:
         return seq
     x, y, w, h = box
@@ -1136,6 +1168,7 @@ def shape_outline(it: dict[str, Any]) -> list[Point] | None:
 
 
 def cust_outline(it: dict[str, Any]) -> list[Point] | None:
+    """自由形(custGeom)の輪郭。パスの点を枠に比例させて並べるだけ(曲線の制御点もそのまま頂点にする)。"""
     x, y, w, h = it["box"]
     path = it["cust"].find("a:pathLst/a:path", NS)
     if path is None:
@@ -1149,6 +1182,7 @@ def cust_outline(it: dict[str, Any]) -> list[Point] | None:
 
 
 def draw_shape(c: Canvas, it: dict[str, Any]) -> None:
+    """コネクタ以外の図形を 1 つ描く: チェックボックス / 貼られた画像 / 直線(矢じり付き)/ 円柱 / 輪郭の多角形 + 中の文字。"""
     x, y, w, h = it["box"]
     p = it["prst"] or ""
     if it["check"] is not None:
@@ -1159,7 +1193,7 @@ def draw_shape(c: Canvas, it: dict[str, Any]) -> None:
             im = open_image(it["image"]).convert("RGBA")
             im = im.resize((max(1, int(c.s(w))), max(1, int(c.s(h)))))
             c.im.paste(im, (int(c.s(x)), int(c.s(y))), im)
-        except Exception:
+        except Exception:  # noqa: BLE001  開けない画像(変換もできない EMF など)は灰色の枠だけ描く(描画全体は止めない)
             c.d.rectangle(c.pts([(x, y), (x + w, y + h)]), outline="gray")
         return
     if p == "line":
@@ -1192,9 +1226,9 @@ def draw_shape(c: Canvas, it: dict[str, Any]) -> None:
 
 
 def draw_cylinder(c: Canvas, it: dict[str, Any]) -> None:
+    """円柱(DB の記号): 上下の楕円と側面。"""
     x, y, w, h = it["box"]
     ry = min(h * 0.18, w * 0.25)
-    body = [(x, y + ry), (x, y + h - ry)]
     c.d.rectangle(c.pts([(x, y + ry), (x + w, y + h - ry)]), fill=it["fill"], outline=None)
     c.polyline([(x, y + ry), (x, y + h - ry)])
     c.polyline([(x + w, y + ry), (x + w, y + h - ry)])
@@ -1204,6 +1238,7 @@ def draw_cylinder(c: Canvas, it: dict[str, Any]) -> None:
 
 
 def draw_checkbox(c: Canvas, it: dict[str, Any]) -> None:
+    """フォームコントロールのチェックボックス: 小さな枠(Checked なら ×、Mixed なら灰色)とラベル。"""
     x, y, w, h = it["box"]
     size = min(h * 0.7, 10)
     bx, by = x + 1, y + (h - size) / 2
@@ -1217,6 +1252,7 @@ def draw_checkbox(c: Canvas, it: dict[str, Any]) -> None:
 
 
 def draw_connector(c: Canvas, it: dict[str, Any], by_id: dict[str, dict[str, Any]]) -> None:
+    """コネクタ(cxnSp)を経路(connector_path)どおりに描き、headEnd / tailEnd の矢じりを付ける。by_id: 接続先を引く図形の表。"""
     if not it["line"]:
         return
     pts = connector_path(it, by_id)
@@ -1228,7 +1264,11 @@ def draw_connector(c: Canvas, it: dict[str, Any], by_id: dict[str, dict[str, Any
 
 
 def render(items: list[dict[str, Any]], cells: list[dict[str, Any]], title: str, size: tuple[float, float] | None = None) -> Image.Image:
-    """size: 画布の大きさ(px)。None なら図形の範囲に合わせる(xlsx)。pptx はスライドの大きさを渡す。"""
+    """図形とセルを 1 枚の画像に描く。size: 画布の大きさ(px)。None なら図形の範囲に合わせる(xlsx)。pptx はスライドの大きさを渡す。
+
+    items の box は題の帯(TITLE_PX)の分だけ下へ書き換える。描いた後の items を位置の計算に使い回さないこと
+    (render_region は書き換えない)。
+    """
     top = TITLE_PX
     if size:
         W, H = size[0], size[1] + top
@@ -1310,10 +1350,12 @@ def render_slides(path: Path, only: str | None = None) -> dict[str, Image.Image]
 
 
 def render_file(path: Path, only: str | None = None) -> dict[str, Image.Image]:
+    """拡張子で render_sheets / render_slides を使い分ける。"""
     return (render_slides if path.suffix == ".pptx" else render_sheets)(path, only)
 
 
-def render_workbook(path: Path, out_dir: Path, only: str | None = None) -> list[Path]:
+def render_to_files(path: Path, out_dir: Path, only: str | None = None) -> list[Path]:
+    """xlsx / pptx の図形のあるシート / スライドを `<ファイル名>__<区切り名>.png` に書き出す(コマンドラインから確認する用)。"""
     written = []
     for sheet, im in render_file(path, only).items():
         out = out_dir / f"{path.stem}__{re.sub(r'[\\/:*?\"<>|]', '_', sheet)}.png"
@@ -1332,5 +1374,5 @@ if __name__ == "__main__":
     if not FONT_PATH:
         print("日本語フォントが見つかりません(fonts-ipafont-gothic を入れてください)", file=sys.stderr)
     for f in args.files:
-        for p in render_workbook(Path(f), Path(args.out), args.sheet):
+        for p in render_to_files(Path(f), Path(args.out), args.sheet):
             print(p)
