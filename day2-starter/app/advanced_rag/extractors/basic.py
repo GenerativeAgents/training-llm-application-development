@@ -20,7 +20,7 @@ from pdfminer.high_level import extract_text
 from . import Chunked, Section
 from .chunking import chunk_sections
 
-warnings.filterwarnings("ignore")  # pandas / openpyxl の警告
+warnings.filterwarnings("ignore", module="openpyxl")  # Data Validation extension の警告
 
 SLIDE_MARK_RE = re.compile(r"^<!-- Slide number: (\d+) -->$", re.M)
 

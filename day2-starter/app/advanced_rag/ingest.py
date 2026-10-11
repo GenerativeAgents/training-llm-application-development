@@ -55,7 +55,11 @@ def ingest_file(path: Path, extractor: str) -> list[dict[str, Any]]:
 
 def main(extractor: str = DEFAULT_EXTRACTOR) -> None:
     paths = sorted(p for p in CORPUS_DIR.rglob("*") if p.suffix in SUFFIXES and not p.name.startswith("~$"))
+    if not paths:
+        sys.exit(f"{CORPUS_DIR} に取り込むファイル(xlsx / pdf / pptx)がありません")
     records = [r for p in paths for r in ingest_file(p, extractor)]
+    if not records:
+        sys.exit(f"{len(paths)} ファイルからテキストを取り出せませんでした(中身が空か、画像だけのファイル)")
     ids = Counter(r["id"] for r in records)
     dupes = sorted(i for i, n in ids.items() if n > 1)
     if dupes:

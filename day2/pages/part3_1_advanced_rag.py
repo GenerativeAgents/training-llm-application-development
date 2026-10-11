@@ -3,7 +3,13 @@ from typing import Any
 import streamlit as st
 import weave
 
-from app.advanced_rag.rag import DATA_DIR, PROJECT, PROMPTS, RagModel
+from app.advanced_rag.rag import (
+    COLLECTION_PROMPTS,
+    DATA_DIR,
+    IMPROVED_PROMPT,
+    PROJECT,
+    RagModel,
+)
 
 CORPUS_DIR = DATA_DIR / "corpus"
 
@@ -20,14 +26,16 @@ STAGES: dict[int, dict[str, Any]] = {
         "use_collection": True,
         "search": "hybrid",
         "rerank": "llm",
-        **PROMPTS["collection"],
+        "system_prompt": IMPROVED_PROMPT,
+        "collection_prompts": COLLECTION_PROMPTS,
     },
     8: {
         "index": "vision",
         "use_collection": True,
         "search": "hybrid",
         "rerank": "llm",
-        **PROMPTS["collection"],
+        "system_prompt": IMPROVED_PROMPT,
+        "collection_prompts": COLLECTION_PROMPTS,
         "select": "score",
         "expand": "unit+steps",
     },
@@ -82,10 +90,12 @@ def app() -> None:
     # disabled=not question にすると、入力欄からフォーカスが外れるまで押せない(値はそのときに送られる)
     if st.button("実行") and question:
         model = GuiRagModel(**attrs)
-        # .call はトレース(call)も返す。self を明示して渡す。例外は握りつぶさずに画面に出す
-        output, call = model.predict.call(
-            model, question, collection, __should_raise=True
-        )
+        # 段階 6 以降は LLM による並べ直しで 10 秒前後かかるので、終わるまで経過時間付きのスピナーを出す
+        with st.spinner("文書を検索して回答を作成しています...", show_time=True):
+            # .call はトレース(call)も返す。self を明示して渡す。例外は握りつぶさずに画面に出す
+            output, call = model.predict.call(
+                model, question, collection, __should_raise=True
+            )
         st.subheader("回答")
         st.markdown(output["answer"])
         st.markdown(f"[Weave のトレース]({call.ui_url})")

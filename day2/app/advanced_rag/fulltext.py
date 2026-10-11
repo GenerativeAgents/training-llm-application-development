@@ -11,12 +11,12 @@
 - 1 文字(`fts_unigram`): かな漢字を 1 文字ずつ。bi-gram では 1 文字の検索語(「胃」)が引けないので、その受け皿
 
 LanceDB 標準の `ngram` トークナイザは使わない。検索語の n-gram をばらばらに OR で探すだけで、並びの一致
-(フレーズ)が効かず、`FB1999904` が `19` を含むだけのチャンクにも当たる。
+(フレーズ)が効かず、`ER2000123` が `20` を含むだけのチャンクにも当たる。
 
 問い合わせは空白区切りの語(質問文から品詞で抜き出したキーワード)で、Elasticsearch の
 match + match_phrase と同じ形にする。語を区切った単位の OR で広く拾い(BM25)、語の並びがそのまま
 一致したチャンクには、語ごとのフレーズ一致の点を足す。フレーズ一致だけにすると、質問の複合語が文書に
-そのままの形で無いとき(質問は「顧客検索API」、文書は「顧客の検索API」)に取りこぼす。
+そのままの形で無いとき(質問は「顧客登録API」、文書は「顧客の登録API」)に取りこぼす。
 """
 
 import re
@@ -28,7 +28,7 @@ from sudachipy import Dictionary, SplitMode
 from sudachipy.morpheme import Morpheme
 from sudachipy.tokenizer import Tokenizer
 
-COLUMNS = {"morph": "fts_morph", "bigram": "fts_bigram"}  # 検索に使う列(RagModel.fts_fields で選ぶ)
+COLUMNS = {"morph": "fts_morph", "bigram": "fts_bigram"}  # 検索に使う列
 UNIGRAM = "fts_unigram"
 ALL_COLUMNS = [*COLUMNS.values(), UNIGRAM]
 
@@ -36,7 +36,7 @@ _CJK = "぀-ヿ㐀-鿿豈-﫿々〆ー"
 WORD_CHAR = re.compile(rf"[0-9a-zA-Z{_CJK}]")
 # 英数字の語(記号でつながった ID・パスは 1 語: project_name、Ctrl+Shift+S は ctrl / shift / s)と、かな漢字の並び
 RUN = re.compile(rf"[0-9a-z]+(?:[._\-/][0-9a-z]+)*|[{_CJK}]+")
-SUDACHI_MAX = 4000  # Sudachi の 1 回の入力の上限(バイト数)より十分短く切る
+SUDACHI_MAX = 4000  # 1 回に Sudachi に渡す文字数。Sudachi の入力の上限は約 49,000 バイトで、日本語は UTF-8 で 1 文字 3 バイトなので十分短い
 
 _sudachi = threading.local()  # Sudachi の Tokenizer は同時に使えない(Weave の評価は predict を並列に呼ぶ)ので、スレッドごとに作る
 
@@ -72,9 +72,9 @@ QUESTION_NOUNS = {"いくつ", "いくら", "いつ"}  # 普通名詞として�
 def keywords(question: str) -> str:
     """質問文から全文検索用のキーワード(空白区切り)を、形態素の品詞で抜き出す(LLM を使わない)。
 
-    名詞(と、それに付く接頭辞・接尾辞)が続いている部分を、元の表記のまま 1 語にする(「主キーカラム」「FB1999904」)。
+    名詞(と、それに付く接頭辞・接尾辞)が続いている部分を、元の表記のまま 1 語にする(「テーブル定義書」「ER2000123」)。
     助詞・助動詞・動詞・代名詞・記号は落とす。「場合」「とき」「全て」のような副詞的な名詞は、単独なら落とし、
-    ほかの名詞と続いていれば残す(「1960年ごろ」)。空白・記号(英数字の間の _ - . / を除く)で語を切る。
+    ほかの名詞と続いていれば残す(「2020年ごろ」)。空白・記号(英数字の間の _ - . / を除く)で語を切る。
     """
     text = unicodedata.normalize("NFKC", question)
     words: list[str] = []
@@ -141,7 +141,7 @@ def _field_queries(column: str, text: str) -> list[FullTextQuery]:
     return queries
 
 
-def query(text: str, fields: list[str]) -> BooleanQuery | None:
-    """空白区切りの語 text の問い合わせ。fields は COLUMNS のキー。各列の点を足し合わせる。"""
-    parts = [q for f in fields for q in _field_queries(COLUMNS[f], text)]
+def query(text: str) -> BooleanQuery | None:
+    """空白区切りの語 text の問い合わせ。COLUMNS の各列の点を足し合わせる。"""
+    parts = [q for c in COLUMNS.values() for q in _field_queries(c, text)]
     return BooleanQuery([(Occur.SHOULD, q) for q in parts]) if parts else None
