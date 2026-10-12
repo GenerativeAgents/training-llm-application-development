@@ -9,6 +9,9 @@ from app.advanced_rag.rag import (
     IMPROVED_PROMPT,
     PROJECT,
     RagModel,
+    get_table,
+    has_index,
+    quote,
 )
 
 CORPUS_DIR = DATA_DIR / "corpus"
@@ -54,7 +57,9 @@ class GuiRagModel(RagModel):
                 st.code(c["text"], language=None, wrap_lines=True)
                 path = (corpus_dir / c["file"]).resolve()
                 if not path.is_relative_to(corpus_dir) or not path.is_file():
-                    st.caption("元のファイルが見つからないため、ダウンロードできません。")
+                    st.caption(
+                        "元のファイルが見つからないため、ダウンロードできません。"
+                    )
                     continue
                 st.download_button(
                     "元のファイルをダウンロード",
@@ -71,6 +76,17 @@ def init_weave() -> None:
     weave.init(PROJECT)
 
 
+@st.cache_data
+def count_chunks(index: str, collection: str | None) -> int | None:
+    """インデックス(LanceDB のテーブル)に登録されたチャンクの件数。collection を渡せばその資料群だけを数える。
+    インデックスが無ければ None。インデックスは build_index.py で作り直すまで変わらないのでキャッシュする。"""
+    if not has_index(index):
+        return None
+    table = get_table(index, RagModel.model_fields["embedding_model"].default)
+    where = f"collection = {quote(collection)}" if collection else None
+    return table.count_rows(filter=where)
+
+
 def app() -> None:
     init_weave()
     st.title("Advanced RAG")
@@ -85,6 +101,17 @@ def app() -> None:
             collection = st.selectbox(
                 "検索対象", sorted(p.name for p in CORPUS_DIR.iterdir() if p.is_dir())
             )
+        # この段階が検索するインデックスと、その登録件数(資料群を選んでいればその中の件数も)を出す
+        index = attrs["index"]
+        total = count_chunks(index, None)
+        if total is None:
+            st.warning(f"インデックス {index} がありません。")
+        elif collection:
+            st.caption(
+                f"インデックス: {index}（{count_chunks(index, collection)} / {total} 件）"
+            )
+        else:
+            st.caption(f"インデックス: {index}（{total} 件）")
 
     question = st.text_input("質問")
     # disabled=not question にすると、入力欄からフォーカスが外れるまで押せない(値はそのときに送られる)

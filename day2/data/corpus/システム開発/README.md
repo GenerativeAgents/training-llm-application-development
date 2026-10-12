@@ -3,7 +3,7 @@
 このフォルダには、次の第三者の著作物の一部を原本のまま収録しています。
 
 - 作品名: Nablarchシステム開発ガイド サンプルプロジェクト(設計書)
-- 提供元: Fintan(TIS株式会社)
+- 提供元: Fintan(TISI株式会社。2026 年 7 月 1 日に TIS株式会社から商号変更。設計書の作成者欄の「TIS」は旧社名)
 - 入手元: https://github.com/Fintan-contents/nablarch-system-development-guide/tree/3c34cc3a75da0c4ce85620d8002f1c004f2bb753/Sample_Project/設計書
   (コミット `3c34cc3a75da0c4ce85620d8002f1c004f2bb753`、2026-09-23 取得)
 - ライセンス: [クリエイティブ・コモンズ 表示 - 継承 4.0 国際(CC BY-SA 4.0)](https://creativecommons.org/licenses/by-sa/4.0/deed.ja)
@@ -25,6 +25,7 @@
 
 - 検索用インデックス(`data/lancedb/`): 設計書から抽出したテキストと、シート上の図や画面キャプチャを AI で説明させた文
 - 評価用データセット(`data/dataset/`)の質問・正解のうち、この作品の内容に基づくもの
+- 段階 4 の解説資料(`docs/stage4_vision_sample/`): 画面遷移図のシートを図形の情報から描き直した画像、抽出したテキスト、AI による図の説明
 
 これらのうち、この作品に由来する部分は **CC BY-SA 4.0** で提供します。
 

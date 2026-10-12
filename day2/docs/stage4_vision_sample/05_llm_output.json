@@ -1,0 +1,166 @@
+{
+  "arrows": [
+    {
+      "source": "CCC",
+      "target": "画面遷移を表す。CCC:ボタン/リンク名",
+      "label": "CCC",
+      "bidirectional": false,
+      "after": 0
+    },
+    {
+      "source": "プロジェクト登録 【WA1020101】",
+      "target": "プロジェクト登録確認 【WA1020101】",
+      "label": "入力チェックOK",
+      "bidirectional": false,
+      "after": 0
+    },
+    {
+      "source": "プロジェクト登録 【WA1020101】",
+      "target": "プロジェクト登録 【WA1020101】",
+      "label": "入力チェック失敗",
+      "bidirectional": false,
+      "after": 0
+    },
+    {
+      "source": "プロジェクト登録",
+      "target": "プロジェクト登録 【WA1020101】",
+      "label": "プロジェクト登録",
+      "bidirectional": false,
+      "after": 0
+    },
+    {
+      "source": "プロジェクト登録確認 【WA1020101】",
+      "target": "プロジェクト登録完了 【WA1020103】",
+      "label": "登録成功",
+      "bidirectional": false,
+      "after": 0
+    },
+    {
+      "source": "プロジェクト登録確認 【WA1020101】",
+      "target": "プロジェクト登録 【WA1020101】",
+      "label": "登録失敗/戻る",
+      "bidirectional": false,
+      "after": 0
+    },
+    {
+      "source": "プロジェクト登録完了 【WA1020103】",
+      "target": "プロジェクト登録 【WA1020101】",
+      "label": "次へ",
+      "bidirectional": false,
+      "after": 0
+    },
+    {
+      "source": "プロジェクト検索 【WA1020201】",
+      "target": "プロジェクト検索 【WA1020201】",
+      "label": "検索",
+      "bidirectional": false,
+      "after": 0
+    },
+    {
+      "source": "プロジェクト検索",
+      "target": "プロジェクト検索 【WA1020201】",
+      "label": "プロジェクト検索",
+      "bidirectional": false,
+      "after": 0
+    },
+    {
+      "source": "プロジェクト検索 【WA1020201】",
+      "target": "プロジェクト詳細【WA1020202】",
+      "label": "プロジェクト名リンク",
+      "bidirectional": false,
+      "after": 0
+    },
+    {
+      "source": "プロジェクト詳細【WA1020202】",
+      "target": "プロジェクト検索 【WA1020201】",
+      "label": "戻る",
+      "bidirectional": false,
+      "after": 0
+    },
+    {
+      "source": "プロジェクト更新 【WA1020301】",
+      "target": "プロジェクト更新確認 【WA1020301】",
+      "label": "入力チェックOK",
+      "bidirectional": false,
+      "after": 0
+    },
+    {
+      "source": "プロジェクト更新 【WA1020301】",
+      "target": "プロジェクト更新 【WA1020301】",
+      "label": "入力チェック失敗",
+      "bidirectional": false,
+      "after": 0
+    },
+    {
+      "source": "更新",
+      "target": "プロジェクト更新 【WA1020301】",
+      "label": "更新",
+      "bidirectional": false,
+      "after": 0
+    },
+    {
+      "source": "プロジェクト更新確認 【WA1020301】",
+      "target": "プロジェクト更新完了 【WA1020303】",
+      "label": "更新成功",
+      "bidirectional": false,
+      "after": 0
+    },
+    {
+      "source": "プロジェクト更新確認 【WA1020301】",
+      "target": "プロジェクト更新 【WA1020301】",
+      "label": "戻る",
+      "bidirectional": false,
+      "after": 0
+    },
+    {
+      "source": "プロジェクト更新 【WA1020301】",
+      "target": "プロジェクト詳細【WA1020202】",
+      "label": "戻る",
+      "bidirectional": false,
+      "after": 0
+    }
+  ],
+  "pairs": [],
+  "facts": [
+    {
+      "text": "画面遷移図の対象: 2. プロジェクト管理(A102)",
+      "after": 0
+    },
+    {
+      "text": "WA10201/プロジェクト登録 > プロジェクト登録 【WA1020101】",
+      "after": 0
+    },
+    {
+      "text": "WA10201/プロジェクト登録 > プロジェクト登録確認 【WA1020101】",
+      "after": 0
+    },
+    {
+      "text": "WA10201/プロジェクト登録 > プロジェクト登録完了 【WA1020103】",
+      "after": 0
+    },
+    {
+      "text": "WA10202/プロジェクト検索 > プロジェクト検索 【WA1020201】",
+      "after": 0
+    },
+    {
+      "text": "WA10202/プロジェクト検索 > プロジェクト詳細【WA1020202】",
+      "after": 0
+    },
+    {
+      "text": "WA10203/プロジェクト更新 > プロジェクト更新 【WA1020301】",
+      "after": 0
+    },
+    {
+      "text": "WA10203/プロジェクト更新 > プロジェクト更新確認 【WA1020301】",
+      "after": 0
+    },
+    {
+      "text": "WA10203/プロジェクト更新 > プロジェクト更新完了 【WA1020303】",
+      "after": 0
+    },
+    {
+      "text": "プロジェクト検索図の左側に「入力チェック失敗」と表示されている",
+      "after": 0
+    }
+  ]
+}

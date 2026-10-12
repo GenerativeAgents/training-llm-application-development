@@ -1,0 +1,12 @@
+キーワード: 男性 部位別 年齢調整がん死亡率 1960年ごろ 胃 次 部位
+
+BooleanQuery(すべて SHOULD = OR。各句の点を足す)
+  MatchQuery  fts_morph    男性 部位 別 年齢 調整 がん 死亡率 1960 年 頃 胃 次 部位   # 語の OR(BM25)
+  PhraseQuery fts_morph    部位 別   # 並びの一致で加点
+  PhraseQuery fts_morph    年齢 調整 がん 死亡率   # 並びの一致で加点
+  PhraseQuery fts_morph    1960 年 頃   # 並びの一致で加点
+  MatchQuery  fts_unigram  胃 次   # 語の OR(BM25)
+  MatchQuery  fts_bigram   男性 部位 位別 年齢 齢調 調整 整が がん ん死 死亡 亡率 1960 年ご ごろ 部位   # 語の OR(BM25)
+  PhraseQuery fts_bigram   部位 位別   # 並びの一致で加点
+  PhraseQuery fts_bigram   年齢 齢調 調整 整が がん ん死 死亡 亡率   # 並びの一致で加点
+  PhraseQuery fts_bigram   1960 年ご ごろ   # 並びの一致で加点
