@@ -9,7 +9,7 @@
 `day2-starter/` の中で実行します。
 
 ```bash
-./scripts/rag_indexes/download.sh --version 2026-10-08
+./scripts/rag_indexes/download.sh --version 2026-10-12
 ```
 
 `--version` を省略するとGitHubのLatest Releaseから取得します。研修では講師から指定された日付を使ってください。

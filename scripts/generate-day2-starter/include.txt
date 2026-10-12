@@ -6,6 +6,7 @@
 .devcontainer
 .vscode
 data
+docs
 
 # --- これらは day2 の中身を入れず、指定したファイル/ディレクトリだけを starter に入れる ---
 # app は random_number_mcp.py と coding_agent.py を含めず、__init__.py・chat_cli.py・agent_loop.py・session_state.py・advanced_rag・tools だけ配置する
