@@ -148,7 +148,7 @@ flowchart LR
 | 既存Webアプリ | Next.js (App Router), SQLite |
 | LLMアプリ | FastAPI, LangChain/LangGraph |
 | LLM | Anthropic Claude（Amazon Bedrock 経由。障害時は Anthropic API を直接利用） |
-| LLMOps | LangSmith |
+| LLMOps | W&B Weave |
 
 ## 3. 機能要件
 
@@ -332,7 +332,7 @@ flowchart TD
   "classification_confidence": 0.92,
   "quality_alert": false,
   "edit_distance": null,
-  "run_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+  "weave_call_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
   "created_at": "2024-01-15T10:30:00Z",
   "updated_at": "2024-01-15T10:30:05Z",
   "sent_at": null
@@ -397,7 +397,7 @@ AI回答生成を行う。Next.jsの`after`から呼び出される。
 |---------|------|------|
 | GET | `/api/health` | ヘルスチェック |
 | POST | `/api/generate` | AI回答生成（トピック分類 + 回答生成 + 品質チェック） |
-| POST | `/api/feedback` | フィードバック記録（編集距離・トピック修正をLangSmithに記録） |
+| POST | `/api/feedback` | フィードバック記録（編集距離・トピック修正をWeaveに記録） |
 
 #### GET /api/health
 
@@ -441,7 +441,7 @@ AI回答生成を行う。Next.jsの`after`から呼び出される。
       "politeness_reason": ""
     }
   },
-  "run_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+  "weave_call_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 }
 ```
 
@@ -449,13 +449,13 @@ AI回答生成を行う。Next.jsの`after`から呼び出される。
 
 #### POST /api/feedback
 
-送信時にAI回答と最終回答の編集距離・トピック修正有無を算出し、LangSmithにフィードバックとして記録する。
+送信時にAI回答と最終回答の編集距離・トピック修正有無を算出し、Weaveのトレース（call）にフィードバックとして記録する。
 
 **リクエスト**
 
 ```json
 {
-  "run_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+  "weave_call_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
   "ai_body": "AIが生成した回答本文",
   "final_body": "担当者が編集した最終回答本文",
   "original_topic": "product",
@@ -493,7 +493,7 @@ AI回答生成を行う。Next.jsの`after`から呼び出される。
 | classification_confidence | number | トピック分類の確信度（0.0〜1.0） |
 | quality_alert | boolean | 品質アラート（丁寧さNG） |
 | edit_distance | number | AI生成回答と最終送信回答の編集距離（0.0〜1.0） |
-| run_id | string | LangSmithのrun ID（フィードバック紐付け用） |
+| weave_call_id | string | Weaveのcall ID（フィードバック紐付け用） |
 | created_at | datetime | 作成日時 |
 | updated_at | datetime | 更新日時 |
 | sent_at | datetime | 送信日時 |
@@ -721,10 +721,10 @@ confidenceは分類の確信度を0.0〜1.0で表してください。
 # Bedrock 障害時のバックアップ: Anthropic の API キーを設定すると Anthropic API を直接使う
 # ANTHROPIC_API_KEY=sk-ant-xxxxx
 
-# LangSmithの設定
-LANGSMITH_API_KEY=lsv2_pt_xxxxx
-LANGSMITH_TRACING=true
-LANGSMITH_PROJECT=llm-app-evals-book
+# W&B Weave の設定
+WANDB_API_KEY=xxxxx
+# プロジェクト名の末尾に自分の名前を付ける 例: training-ai-agent-dev-oshima
+WANDB_PROJECT=training-ai-agent-dev-
 ```
 
 ### 9.2 起動手順
@@ -741,7 +741,7 @@ npm install
 npm run dev
 ```
 
-## 10. 評価設計（LangSmith連携）
+## 10. 評価設計（W&B Weave連携）
 
 評価は次の3つに分けて設計する。
 
@@ -758,7 +758,7 @@ npm run dev
 
 ### 10.2 リリース前の評価
 
-ワークフローのうち「トピック分類」と「回答生成」の出力に対し、LangSmithのデータセットを用いて評価を行う。
+ワークフローのうち「トピック分類」と「回答生成」の出力に対し、Weaveのデータセットを用いて評価を行う。
 
 | 評価指標 | 評価対象 | 評価方法 | スコア |
 |---|---|---|---|
