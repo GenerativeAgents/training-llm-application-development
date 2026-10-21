@@ -32,8 +32,11 @@ dev = [
 # 「その時点の2週間前」として毎回計算される。ロックが最新なら再解決は走らないので、
 # 依存変更や uv lock --upgrade などで再解決したときにカットオフが更新される。
 exclude-newer = "2 weeks"
-# exclude-newer の相対指定に対応したバージョンを要求する
-required-version = ">=0.11"
+# emSign CA事故の修正を取り込み、他の依存の待機期間は維持する。
+exclude-newer-package = { certifi = false }
+constraint-dependencies = ["certifi>=2026.10.19"]
+# emSign CA事故に対応したuvを要求する。
+required-version = ">=0.13.4"
 
 [tool.ruff]
 target-version = "py313"
