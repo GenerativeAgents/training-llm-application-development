@@ -1,6 +1,8 @@
 services:
   app:
-    image: mcr.microsoft.com/devcontainers/base:bookworm
+    build:
+      context: .
+      dockerfile: Dockerfile
     command: sleep infinity
     environment:
       DISABLE_AUTOUPDATER: "1"
