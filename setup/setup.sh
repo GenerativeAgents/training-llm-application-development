@@ -10,6 +10,11 @@ if [ "$(whoami)" != "ubuntu" ]; then
   exit 1
 fi
 
+# Ubuntu 22.04: refresh the trust store before downloading tools (USN-8944-1).
+sudo apt-get update
+sudo apt-get install -y --no-install-recommends ca-certificates
+dpkg --compare-versions "$(dpkg-query -W -f='${Version}' ca-certificates)" ge '20260816ubuntu0.22.04.1'
+
 # ソースコードのダウンロード
 cd /home/ubuntu/environment
 if [ ! -d "training-llm-application-development" ]; then
@@ -18,8 +23,8 @@ fi
 cd training-llm-application-development
 
 # uvのインストール
-curl -LsSf https://astral.sh/uv/0.4.14/install.sh | sh
-export PATH="$HOME/.cargo/bin:$PATH"
+curl -LsSf https://astral.sh/uv/0.13.4/install.sh | sh
+export PATH="$HOME/.local/bin:$PATH"
 uv --version
 
 # PythonとPythonパッケージのインストール
@@ -32,7 +37,7 @@ curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
 [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
-nvm install 24.11.1
+nvm install 24.22.1
 
 # Claude Codeがインストールされるパスを追加
 echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc && source ~/.bashrc
