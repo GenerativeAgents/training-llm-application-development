@@ -398,6 +398,11 @@ Resources:
           set -o pipefail
           set -o xtrace
 
+          # Refresh Ubuntu 22.04 CA certificates before downloads (USN-8944-1).
+          apt-get update
+          apt-get install -y --no-install-recommends ca-certificates
+          dpkg --compare-versions "$(dpkg-query -W -f='${!Version}' ca-certificates)" ge '20260816ubuntu0.22.04.1'
+
           # Install AWS CLI
           snap install aws-cli --classic
           aws --version

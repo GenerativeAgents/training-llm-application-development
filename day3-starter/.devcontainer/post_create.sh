@@ -4,7 +4,7 @@ set -euo pipefail
 # Install Git completion
 echo "source /usr/share/bash-completion/completions/git" >> ~/.bashrc
 
-# Keep support for web/.npmrc min-release-age when using Node.js 24.11.1
+# Keep support for web/.npmrc min-release-age with npm 11.19 or later
 npm install --global npm@11.19.0
 
 # Install Chromium for Playwright
