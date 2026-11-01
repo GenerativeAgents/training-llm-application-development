@@ -1,8 +1,8 @@
 """段階 5(ハイブリッド検索)の全文検索が、文書と質問をどう区切って LanceDB に渡しているかを、実際のデータから書き出す。
 
 LLM は呼ばない。配布済みの LanceDB のテーブル(data/lancedb/docs_vision)と、質問データセット(data/dataset/qa-advance.jsonl)を読む。
-既定の題材は、q18「男性の部位別の年齢調整がん死亡率で、1960年ごろに胃の次に高かった部位はどれですか?」と、
-その正解の文書(厚労省資料のスライド 36)。1 文字の検索語「胃」があるので、1 文字の列(fts_unigram)が要る理由が見える。
+既定の題材は、q18「20本以上の歯がある人が6割以下になってしまうのは、資料の最新では何歳ぐらい？」と、
+その正解の文書(厚労省資料のスライド 83)。1 文字の検索語「歯」があるので、1 文字の列(fts_unigram)が要る理由が見える。
 
 OPENAI_API_KEY があれば、最後にベクトル検索と RRF で混ぜた結果(10_hybrid_rrf.txt)も書く(質問 1 件の埋め込みだけ呼ぶ)。
 
@@ -30,7 +30,7 @@ from app.advanced_rag import fulltext  # noqa: E402
 from app.advanced_rag.rag import DATA_DIR, DB_DIR, RagModel, get_table, quote  # noqa: E402
 
 DEFAULT_QA_ID = "q18"
-DEFAULT_DOC_ID = "厚労省資料/健康日本21（第二次）参考資料スライド集#slide36"
+DEFAULT_DOC_ID = "厚労省資料/健康日本21（第二次）参考資料スライド集#slide83"
 DATASET = DATA_DIR / "dataset" / "qa-advance.jsonl"
 MORPHEME_LINES = 5  # 文書側の形態素の一覧は、先頭から何行分を書くか
 
@@ -114,7 +114,7 @@ def single_char_text(table: lancedb.table.Table, char: str) -> str:
     """1 文字の検索語を bi-gram の列と 1 文字の列で引いた結果の違い。"""
     out = [f"検索語「{char}」を列ごとに MatchQuery で引く", ""]
     for column in (fulltext.COLUMNS["bigram"], fulltext.UNIGRAM):
-        hits = table.search(MatchQuery(char, column), query_type="fts").limit(5).to_list()
+        hits = table.search(MatchQuery(char, column), query_type="fts").limit(5).to_list()  # type: ignore[call-arg]  # fulltext.py 参照
         out.append(f"{column}: {len(hits)} 件")
         for h in hits:
             out.append(f"  {h['_score']:>6.2f}  {h['id']}")
@@ -128,8 +128,8 @@ def tokenizer_comparison(table: lancedb.table.Table) -> str:
     with tempfile.TemporaryDirectory() as tmp:
         t = lancedb.connect(tmp).create_table("t", data=rows)
         for label, config, queries in [
-            ("simple(既定。空白と句読点で切る)", FTS(), ["胃", "死亡率", "project_name", "年齢調整がん死亡率"]),
-            ("ngram(3 文字の n-gram)", FTS(base_tokenizer="ngram"), ["胃", "20", "死亡率", "ER2000123"]),
+            ("simple(既定。空白と句読点で切る)", FTS(), ["歯", "割合", "project_name", "歯科疾患実態調査"]),
+            ("ngram(3 文字の n-gram)", FTS(base_tokenizer="ngram"), ["歯", "20", "割合", "ER2000123"]),
         ]:
             t.create_index("text", replace=True, config=config)
             out.append(f"## {label}")
@@ -141,7 +141,7 @@ def tokenizer_comparison(table: lancedb.table.Table) -> str:
                     out.append(f"  {h['_score']:>6.2f}  {h['id']}")
             out.append("")
     out.append("## 本リポジトリ(fts_morph + fts_bigram + fts_unigram)")
-    for q in ["胃", "死亡率", "project_name", "年齢調整がん死亡率", "ER2000123"]:
+    for q in ["歯", "割合", "project_name", "歯科疾患実態調査", "ER2000123"]:
         hits = table.search(fulltext.query(q), query_type="fts").limit(1000).to_list()
         literal = sum(fulltext.normalize(q) in fulltext.normalize(h["title"] + "\n" + h["text"]) for h in hits)
         out.append(f"「{q}」: {len(hits)} 件(そのうち本文に「{q}」を含むもの {literal} 件)")

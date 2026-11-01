@@ -5,10 +5,10 @@ predict() は次の順に処理する。どの処理を使うかは RagModel の
 
 1. 検索(search): ベクトル検索(vector)か、ベクトル検索と全文検索を RRF で混ぜる(hybrid、段階 5〜)。
    use_collection なら、質問者が選んだ資料群(collection)に先に絞る(段階 2〜)
-2. 並べ直し(rerank): 上位のチャンクを LLM が 1 件ずつ採点し、点の順に並べ直す(llm、段階 6〜)
+2. 並べ直し(rerank): 上位のチャンクを Decisions API の 1 回の呼び出しで採点し、点の順に並べ直す(llm、段階 6〜)
 3. 選択(select): LLM に渡すチャンクを、上位 top_k 件か、並べ直しの点が閾値以上のもので選ぶ(score、段階 8)
-4. 拡張(expand): 選んだチャンクに、同じ区切りのほかのチャンクと、手順の途中から始まっていれば手前のチャンクを足す
-   (unit+steps、段階 8)
+4. 拡張(expand): 選んだチャンクに、同じ区切り(unit)のほかのチャンクを足す(unit、段階 8)。ページをまたぐ手順は索引時に
+   1 つの区切りにまとめてある(extractors/continuation.py)ので、検索時は区切りをそのまま使う
 5. 回答: system prompt(段階 7 で IMPROVED_PROMPT と資料群ごとの説明に置き換える)とチャンクを渡して答えさせる
 
 retrieve() は 1〜4 だけを行う。predict() は答えと一緒に、渡したチャンク(contexts)と検索の順位(ranked_ids)も返し、
@@ -21,17 +21,18 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import lancedb
 import numpy as np
 import numpy.typing as npt
 import weave
 from dotenv import load_dotenv
+from lancedb.query import LanceVectorQueryBuilder
 from openai import OpenAI
+from openai.types.decision import Decision
+from openai.types.decision_create_params import QuestionQuestionParamScoreLevel
 from openai.types.shared import ReasoningEffort
-from pydantic import BaseModel
-from weave.trace.util import ContextAwareThreadPoolExecutor  # スレッドの中の op も predict の子として記録する
 
 from . import fulltext
 
@@ -65,6 +66,9 @@ IMPROVED_PROMPT = (
     "手順・処理の流れ・項目の列挙を聞かれたら、途中の段階も含めて漏れなく挙げてください。"
     "文書に手がかりがまったく無いときだけ「分かりません」と答えてください。"
     "前置きは省いて簡潔に答えてください。ただし答えの中身は省かないでください。"
+    "文書の文言(メッセージなど)を答えるときは、続きの行があれば省略せずに最後まで引用してください。"
+    "「図の説明:」で始まる連続した行は、1 つの画面や図の説明が行ごとに分かれたものです。"
+    "メッセージや文言を答えるときは、連続する行をつなげて全文を書いてください。"
 )
 
 # 資料群(collection)ごとに、どういう資料で、チャンクがどう書かれていて、答えをどう書くかを system prompt に足す。
@@ -104,41 +108,35 @@ COLLECTION_PROMPTS = {
 }
 
 
-RERANK_PROMPT = (
-    "検索で取り出した文書のチャンクが、質問に答えるのにどれだけ役立つかを 0〜10 の整数で score に採点します。"
-    "10: 質問の答えそのもの、またはその一部が書かれている。"
-    "5: 答えは無いが、答えを探す手がかり(同じ対象についての別の情報、答えのありかを示す記述)がある。"
-    "0: 質問と関係が無い。"
-    "質問が複数のことを聞いているなら、そのうち 1 つにでも答えているチャンクは高く採点してください。"
-)
-# 段階 8: チャンクが手順・列挙の途中から始まっているか(そうなら手前のチャンクも渡す)。並べ直しの採点と同じ呼び出しで聞く
-MIDWAY_RULE = (
-    "チャンクの本文(先頭に付いた見出しの行は除く)が、前の部分から続く手順・操作・列挙の途中から始まっているかを"
-    "starts_midway に true / false で答えてください。"
-    "たとえば、最初に出てくる手順の番号が 1 でない、前の手順や画面を受けた書き出しになっている、などです。"
-)
-RERANK_MIDWAY_PROMPT = RERANK_PROMPT + "あわせて、" + MIDWAY_RULE
-# 並べ直しの候補に無いチャンク(手前をさかのぼるとき)を判定する
-MIDWAY_PROMPT = "文書のチャンクを 1 つ渡します。" + MIDWAY_RULE
-# 区切りが互いに独立した文書になっている形式。手前のチャンクへは、区切り(シート)をまたいでさかのぼらない
-NO_STEP_BACK_SUFFIXES = (".xlsx",)
+# 並べ直しは Decisions API(client.decisions.create)で行う。質問を input に、候補のチャンクを 1 件 1 問として questions に
+# 入れ、1 回の呼び出しで全部採点する。チャンクごとに「質問に答えるのにどれだけ役立つか」を 3 段階(RELEVANCE_LEVELS)で問い、
+# 返ってきた段階ごとの確率を LEVEL_POINTS の期待値として 0〜10 の点にする。答えの確率だけでなく手がかりの確率も点に入るので、
+# 答えが無くても答えのありかを示すチャンクは、無関係なチャンクより上に来る
+DECISIONS_MODEL = "gpt-6-luna"  # Decisions API が対応するモデル(これだけ)
+RERANK_INPUT = "検索で取り出した文書のチャンクを、質問に答えるのにどれだけ役立つかで採点します。"
+RELEVANCE_QUESTION = "このチャンクが、質問に答えるのにどれだけ役立つか。"
+RELEVANCE_LEVELS: list[QuestionQuestionParamScoreLevel] = [  # 低い段階から順に並べる(Decisions API の決まり)
+    {"label": "無関係", "description": "質問と関係が無い。"},
+    {
+        "label": "手がかり",
+        "description": "答えは無いが、答えを探す手がかり(同じ対象についての別の情報、答えのありかを示す記述)がある。",
+    },
+    {
+        "label": "答え",
+        "description": "質問の答えそのもの、またはその一部が書かれている。質問が複数のことを聞いているなら、そのうち 1 つにでも答えていればこれ。",
+    },
+]
+LEVEL_POINTS = {"無関係": 0, "手がかり": 5, "答え": 10}
+MAX_QUESTIONS = 400  # Decisions API の 1 回の呼び出しに入れられる問の数の上限
 EXPAND_COLUMNS = ["id", "title", "text", "collection", "file", "sheet", "unit", "seq"]
 
-RERANK_WORKERS = 8  # 1 問の採点を並列に投げる数(Evaluation も問題ごとに並列なので控えめにする)
 
-
-# LLM に返させる JSON の形。Structured Outputs で、必ずこの形で返ってくる
-class Score(BaseModel):
-    score: int
-
-
-class ScoreMidway(BaseModel):
-    score: int
-    starts_midway: bool
-
-
-class Midway(BaseModel):
-    starts_midway: bool
+@weave.op
+def decisions_create(**kwargs: Any) -> Decision:
+    """Decisions API の呼び出し。Weave の OpenAI 自動計装は chat.completions / responses / embeddings だけで decisions を
+    対象にしていないので、op にして入出力を記録する。戻り値に model と usage があるので、Weave はそれを使用量として集計し、
+    gpt-6-luna の単価で費用を出す(Decisions API は入力トークンだけの課金で単価も同じ)。"""
+    return client.decisions.create(**kwargs)
 
 
 def load_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -221,14 +219,13 @@ class RagModel(weave.Model):
     rank_depth: int = 50  # 診断用に、この順位までの文書 ID を記録する(LLM に渡すのは選んだチャンクだけ)
     search: str = "vector"  # vector(ベクトル検索)/ hybrid(ベクトル検索と全文検索を RRF で混ぜる)
     rrf_k: int = 5  # RRF の k。1 / (k + 順位) の和で並べる。小さいほど各検索の上位が強く効く(よく使われる値は 60)
-    rerank: str = "none"  # none / llm(検索の上位 rerank_depth 件を LLM が 1 件ずつ採点し、点の順に並べ直す)
-    rerank_depth: int = 20  # 並べ直す候補の数。これより下の順位はそのまま後ろに付ける
+    rerank: str = "none"  # none / llm(検索の上位 rerank_depth 件を Decisions API で採点し、点の順に並べ直す)
+    rerank_depth: int = 20  # 並べ直す候補の数(1 回の呼び出しで採点する)。これより下の順位はそのまま後ろに付ける
     select: str = "top_k"  # top_k(上位 top_k 件)/ score(並べ直しの点が score_threshold 以上。rerank="llm" のときだけ)
     score_threshold: int = 7
     min_selected: int = 1  # score で選ぶとき、閾値以上がこれより少なければ上位から補う
     max_selected: int = 5  # score で選ぶときの上限(広げる前の件数)
-    expand: str = "none"  # none / unit+steps(同じ区切りのほかのチャンクと、区切りが手順の途中から始まっていれば手前のチャンクも渡す)
-    max_back: int = 2  # unit+steps で手前にさかのぼるチャンクの数の上限
+    expand: str = "none"  # none / unit(選んだチャンクと同じ区切りのほかのチャンクも渡す)
     max_context_chars: int = 20000  # 広げるときの、渡すチャンクの文字数の合計の上限(選んだチャンクそのものは必ず渡す)
 
     @weave.op
@@ -237,63 +234,45 @@ class RagModel(weave.Model):
         return fulltext.keywords(question)
 
     @weave.op
-    def rerank_score(self, question: str, title: str, text: str) -> int:
-        """チャンク 1 件の、質問に対する関連度(0〜10)。"""
-        res = client.chat.completions.parse(
-            model=self.chat_model,
-            messages=[
-                {"role": "developer", "content": RERANK_PROMPT},
-                {"role": "user", "content": f"# 質問\n{question}\n\n# チャンク: {title}\n{text}"},
-            ],
-            response_format=Score,
-            reasoning_effort=self.reasoning_effort,
-        )
-        return res.choices[0].message.parsed.score
+    def rerank_scores(self, question: str, hits: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """候補のチャンクを、Decisions API の 1 回の呼び出しで採点する(チャンク 1 件が 1 問)。
 
-    @weave.op
-    def rerank_score_midway(self, question: str, title: str, text: str) -> dict[str, Any]:
-        """チャンク 1 件の関連度(score、0〜10)と、手順・列挙の途中から始まっているか(starts_midway)。"""
-        res = client.chat.completions.parse(
-            model=self.chat_model,
-            messages=[
-                {"role": "developer", "content": RERANK_MIDWAY_PROMPT},
-                {"role": "user", "content": f"# 質問\n{question}\n\n# チャンク: {title}\n{text}"},
-            ],
-            response_format=ScoreMidway,
-            reasoning_effort=self.reasoning_effort,
+        チャンクごとに、点(score、0〜10。段階ごとの確率の LEVEL_POINTS による期待値)と段階ごとの確率(level_probs)を返す。
+        答えられなかった問(refusal)は 0 点にする。
+        """
+        if not hits:
+            return []  # 候補が無い(資料群で絞って 0 件など)ときは API を呼ばない(問 0 件のリクエストはエラーになる)
+        if len(hits) > MAX_QUESTIONS:
+            raise ValueError(
+                f"候補が {len(hits)} 件で Decisions API の問の上限 {MAX_QUESTIONS} を超えます。rerank_depth を減らしてください"
+            )
+        res = decisions_create(
+            model=DECISIONS_MODEL,
+            input=f"{RERANK_INPUT}\n\n# 質問\n{question}",
+            questions=[
+                {
+                    "type": "score",
+                    "name": f"score_{i}",
+                    "instructions": f"{RELEVANCE_QUESTION}\n\n# チャンク: {h['title']}\n{h['text']}",
+                    "levels": RELEVANCE_LEVELS,
+                }
+                for i, h in enumerate(hits)
+            ],  # type: ignore[arg-type]
         )
-        return res.choices[0].message.parsed.model_dump()
-
-    @weave.op
-    def starts_midway(self, title: str, text: str) -> bool:
-        """チャンクが手順・列挙の途中から始まっているか(並べ直しの候補に無いチャンク用)。"""
-        res = client.chat.completions.parse(
-            model=self.chat_model,
-            messages=[
-                {"role": "developer", "content": MIDWAY_PROMPT},
-                {"role": "user", "content": f"# チャンク: {title}\n{text}"},
-            ],
-            response_format=Midway,
-            reasoning_effort=self.reasoning_effort,
-        )
-        return res.choices[0].message.parsed.starts_midway
+        answers = {a.name: a for a in res.answers}
+        judged = []
+        for i in range(len(hits)):
+            answer = answers[f"score_{i}"]
+            probs = {p.label: p.probability for p in answer.probabilities} if answer.type == "score" else {}
+            judged.append({"score": sum(LEVEL_POINTS[label] * p for label, p in probs.items()), "level_probs": probs})
+        return judged
 
     def _rerank(self, question: str, hits: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        """上位 rerank_depth 件を LLM の点で並べ直す。同点は元の順位の順。score は LLM の点に置き換える。
-
-        expand が unit+steps なら、同じ呼び出しで手順の途中から始まっているか(starts_midway)も付ける。
-        """
+        """上位 rerank_depth 件を Decisions API の点で並べ直す。同点は元の順位の順。score は検索の点から採点の点に置き換える。"""
         head, tail = hits[: self.rerank_depth], hits[self.rerank_depth :]
-
-        def judge(h: dict[str, Any]) -> dict[str, Any]:
-            if self.expand == "unit+steps":
-                return self.rerank_score_midway(question, h["title"], h["text"])
-            return {"score": self.rerank_score(question, h["title"], h["text"])}
-
-        with ContextAwareThreadPoolExecutor(RERANK_WORKERS) as pool:
-            got = list(pool.map(judge, head))
-        order = sorted(range(len(head)), key=lambda i: -got[i]["score"])  # sorted は安定なので同点は元の順
-        return [head[i] | got[i] | {"score": float(got[i]["score"])} for i in order] + tail
+        judged = self.rerank_scores(question, head)
+        order = sorted(range(len(head)), key=lambda i: -judged[i]["score"])  # sorted は安定なので同点は元の順
+        return [head[i] | judged[i] for i in order] + tail
 
     def _select(self, hits: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """LLM に渡すチャンクを選ぶ。top_k なら上位 top_k 件、score なら並べ直しの点が閾値以上(min〜max 件)。"""
@@ -307,20 +286,14 @@ class RagModel(weave.Model):
         chosen = [h for h in scored if h["score"] >= self.score_threshold][: self.max_selected]
         return chosen if len(chosen) >= self.min_selected else scored[: self.min_selected]
 
-    def _expand(
-        self, table: lancedb.table.Table, selected: list[dict[str, Any]], judged: dict[str, bool]
-    ) -> list[dict[str, Any]]:
-        """選んだチャンクを、同じ区切りのほかのチャンクと手前のチャンクまで広げる。
+    def _expand(self, table: lancedb.table.Table, selected: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """選んだチャンクを、同じ区切り(unit)のほかのチャンクまで広げる。
 
         選んだチャンクごとに 1 つのまとまり(group)にし、まとまりの中はファイルの中の順(seq)に並べる。
-        同じ区切りのチャンクは、選んだチャンクに近い順に max_context_chars まで足す。区切りの先頭のチャンクが手順・列挙の途中から
-        始まっていれば(judged は並べ直しで判定済みの分)、ファイルの中で 1 つ前のチャンクを足し、max_back 回までさかのぼる。
-        xlsx はシートごとに独立した文書なので、シートをまたいではさかのぼらない(同じシートのチャンクは区切りとして全部足している)。
+        同じ区切りのチャンクは、選んだチャンクに近い順に max_context_chars まで足す。
+        区切りは抽出器が決めたもの(シート、しおりの項目、ページ / スライド)で、ページをまたぐ手順は索引時に 1 つの区切りに
+        まとめてある(extractors/continuation.py)ので、ここでは区切りの外には出ない。
         """
-
-        def rows(where: str) -> list[dict[str, Any]]:
-            return table.search().where(where).select(EXPAND_COLUMNS).limit(10000).to_list()
-
         included: set[str] = set()
         size = 0
         groups = []
@@ -330,35 +303,14 @@ class RagModel(weave.Model):
             group = [hit | {"role": "selected"}]
             included.add(hit["id"])
             size += len(hit["text"])
-            unit = rows(f"file = {quote(hit['file'])} AND unit = {quote(hit['unit'])}")
+            where = f"file = {quote(hit['file'])} AND unit = {quote(hit['unit'])}"
+            unit = table.search().where(where).select(EXPAND_COLUMNS).limit(10000).to_list()
             for row in sorted(unit, key=lambda r: abs(r["seq"] - hit["seq"])):
                 if row["id"] in included or size + len(row["text"]) > self.max_context_chars:
                     continue
                 group.append(row | {"role": "unit"})
                 included.add(row["id"])
                 size += len(row["text"])
-            if not hit["file"].endswith(NO_STEP_BACK_SUFFIXES):
-                first = min(unit, key=lambda r: r["seq"])
-                current = first if first["id"] in included else None  # 区切りの先頭を渡していなければさかのぼらない
-                for _ in range(self.max_back):
-                    if current is None:
-                        break
-                    midway = judged.get(current["id"])
-                    if midway is None:
-                        midway = self.starts_midway(current["title"], current["text"])
-                    if not midway:
-                        break
-                    before = rows(f"file = {quote(current['file'])} AND seq = {current['seq'] - 1}")
-                    if (
-                        not before
-                        or before[0]["id"] in included
-                        or size + len(before[0]["text"]) > self.max_context_chars
-                    ):
-                        break
-                    current = before[0]
-                    group.append(current | {"role": "before"})
-                    included.add(current["id"])
-                    size += len(current["text"])
             groups.append(sorted(group, key=lambda r: r["seq"]))
         return [c | {"group": g} for g, group in enumerate(groups) for c in group]
 
@@ -366,7 +318,9 @@ class RagModel(weave.Model):
         self, table: lancedb.table.Table, question: str, where: str | None, depth: int
     ) -> list[dict[str, Any]]:
         query = embed([question], self.embedding_model)[0]
-        search = table.search(query, vector_column_name="vector").distance_type("cosine").limit(depth)
+        # search() の注釈は基底クラスだが、ベクトルを渡すと LanceVectorQueryBuilder が返る(distance_type はそちらにしかない)
+        search = cast(LanceVectorQueryBuilder, table.search(query, vector_column_name="vector"))
+        search = search.distance_type("cosine").limit(depth)
         if where:
             search = search.where(where, prefilter=True)
         # score はコサイン類似度(1 - cosine 距離)
@@ -412,11 +366,10 @@ class RagModel(weave.Model):
         elif self.rerank != "none":
             raise ValueError(f"rerank は none / llm のどれか: {self.rerank!r}")
         selected = self._select(hits)
-        if self.expand == "unit+steps":
-            judged = {h["id"]: h["starts_midway"] for h in hits if "starts_midway" in h}
-            selected = self._expand(table, selected, judged)
+        if self.expand == "unit":
+            selected = self._expand(table, selected)
         elif self.expand != "none":
-            raise ValueError(f"expand は none / unit+steps のどれか: {self.expand!r}")
+            raise ValueError(f"expand は none / unit のどれか: {self.expand!r}")
         drop = {"vector", "_distance", "_score", *fulltext.ALL_COLUMNS}  # 検索用の列と LanceDB が付ける距離・点は渡さない
         contexts = [{k: v for k, v in h.items() if k not in drop} for h in selected]
         return {"contexts": contexts, "ranked_ids": [h["id"] for h in hits]}

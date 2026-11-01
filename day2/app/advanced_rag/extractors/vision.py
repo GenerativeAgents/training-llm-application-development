@@ -24,7 +24,7 @@ import base64
 import hashlib
 import io
 import sys
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -147,7 +147,7 @@ def png_bytes(im: "Image.Image | bytes") -> bytes:
     return buf.getvalue()
 
 
-def describe(path: Path, images: dict[str, "Image.Image | bytes"], prompt: str,
+def describe(path: Path, images: Mapping[str, "Image.Image | bytes"], prompt: str,
              extra: dict[str, str] | None = None, schema: type[BaseModel] | None = None) -> dict[str, str]:
     """画像のキー(シート名など)→ 図の説明(LLM の出力)。キャッシュがあればそれを返す。
 

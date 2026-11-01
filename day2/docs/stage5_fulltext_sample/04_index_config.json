@@ -14,8 +14,8 @@
       "columns": [
         "fts_bigram"
       ],
-      "num_indexed_rows": 1375,
-      "size_bytes": 4294992,
+      "num_indexed_rows": 1327,
+      "size_bytes": 4278288,
       "index_details": {
         "lance_tokenizer": "text",
         "base_tokenizer": "whitespace",
@@ -42,8 +42,8 @@
       "columns": [
         "fts_morph"
       ],
-      "num_indexed_rows": 1375,
-      "size_bytes": 1886907,
+      "num_indexed_rows": 1327,
+      "size_bytes": 1876026,
       "index_details": {
         "lance_tokenizer": "text",
         "base_tokenizer": "whitespace",
@@ -70,8 +70,8 @@
       "columns": [
         "fts_unigram"
       ],
-      "num_indexed_rows": 1375,
-      "size_bytes": 2420175,
+      "num_indexed_rows": 1327,
+      "size_bytes": 2400527,
       "index_details": {
         "lance_tokenizer": "text",
         "base_tokenizer": "whitespace",

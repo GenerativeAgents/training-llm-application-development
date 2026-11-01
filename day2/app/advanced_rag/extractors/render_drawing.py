@@ -99,9 +99,12 @@ def find_font() -> str | None:
 FONT_PATH = find_font()
 
 
-def font(pt: float, scale: float = SCALE) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
+def font(pt: float, scale: float = SCALE) -> ImageFont.FreeTypeFont:
     px = max(8, int(pt * 96 / 72 * scale))
-    return ImageFont.truetype(FONT_PATH, px) if FONT_PATH else ImageFont.load_default()
+    if FONT_PATH:
+        return ImageFont.truetype(FONT_PATH, px)
+    # 大きさを渡すと Pillow 同梱のフォント(FreeTypeFont)が返る(型は ImageFont との Union のままなので cast)
+    return cast(ImageFont.FreeTypeFont, ImageFont.load_default(px))
 
 
 # ---------------------------------------------------------------- EMF / WMF

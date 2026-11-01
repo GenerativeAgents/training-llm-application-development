@@ -40,7 +40,7 @@ STAGES: dict[int, dict[str, Any]] = {
         "system_prompt": IMPROVED_PROMPT,
         "collection_prompts": COLLECTION_PROMPTS,
         "select": "score",
-        "expand": "unit+steps",
+        "expand": "unit",
     },
 }
 
@@ -117,7 +117,7 @@ def app() -> None:
     # disabled=not question にすると、入力欄からフォーカスが外れるまで押せない(値はそのときに送られる)
     if st.button("実行") and question:
         model = GuiRagModel(**attrs)
-        # 段階 6 以降は LLM による並べ直しで 10 秒前後かかるので、終わるまで経過時間付きのスピナーを出す
+        # 検索から回答まで数秒かかるので、終わるまで経過時間付きのスピナーを出す
         with st.spinner("文書を検索して回答を作成しています...", show_time=True):
             # .call はトレース(call)も返す。self を明示して渡す。例外は握りつぶさずに画面に出す
             output, call = model.predict.call(

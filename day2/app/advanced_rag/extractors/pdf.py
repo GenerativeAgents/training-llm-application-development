@@ -8,7 +8,9 @@
   ページ単位の正解データ(`#page18`)と照合できるようにする(notebooks/part3_1_eval.ipynb の covers)。
   チャンクの先頭にはしおりの階層(`第1章 … > 1.3 ファイルの保存 > 1.3.3 パスワードの設定`)を見出しとして付け、
   目次と、しおりの題と同じ行(章名の柱)は落とす。
-  しおりが無い、または 1 階層だけ(厚労省資料の「スライド N」)の PDF は、basic と同じくページで区切る。
+  しおりが無い、または 1 階層だけ(厚労省資料の「スライド N」)の PDF はページで区切るが、隣り合うページが 1 つの手順・列挙・表の
+  続きなら(題の行と手順番号の規則、決まらなければ Decisions API で判定。continuation.py)、続く限りまとめて 1 区切りにする
+  (操作マニュアルの、ページをまたぐ手順)。まとめた区切りの先頭が題(画面名)なら見出しにして、2 つ目以降のチャンクにも付ける。
   テキストは basic と同じ pdfminer.six で、ページごとに取る。どちらの区切り方でも、ページの上端・下端の帯にある
   ページ番号(数字と記号だけの行)と、奇数または偶数ページの半分以上に同じ文字で出る行(柱: 資料名など)を落とす。
   資料ごとの形は決め打ちしない(担当課のように一部のページにだけ出る行は内容なので残る)
@@ -40,6 +42,7 @@ from pdfminer.pdfparser import PDFParser
 from pdfminer.pdftypes import resolve1
 
 from . import Chunked, ChunkedWithMeta
+from . import continuation
 from .chunking import split_chunks_with_index
 from .figure_rules import OMIT, RULES, SCHEMA
 
@@ -205,8 +208,15 @@ def units(path: Path) -> list[list[tuple[str, str, int]]]:
     items = outline(path)
     if max((level for level, _, _ in items), default=0) >= 2:
         return _outline_units(pages, items)
-    # しおりが無い / 1 階層だけ: ページで区切る
-    return [[(line, "", i) for line in lines] for i, lines in enumerate(pages, 1) if lines]
+    # しおりが無い / 1 階層だけ: ページで区切り、手順・列挙・表が続いているページはまとめる(continuation.py)
+    by_page = [[(line, "", i) for line in lines] for i, lines in enumerate(pages, 1) if lines]
+    result = []
+    for group in continuation.group_indices(["\n".join(t for t, _, _ in unit) for unit in by_page]):
+        lines = [line for i in group for line in by_page[i]]
+        if len(group) > 1 and continuation.is_title(lines[0][0]):  # 先頭の題(画面名)を見出しにして、2 つ目以降のチャンクにも付ける
+            lines[0] = (lines[0][0], "heading", lines[0][2])
+        result.append(lines)
+    return result
 
 
 def extract(path: Path) -> list[Chunked]:
@@ -257,7 +267,7 @@ def vector_pairs(page: Any) -> list[tuple[str, str]]:
     """
     words = page.extract_words()
     rects = [r for r in page.rects if r.get("stroke") and 20 <= r["width"] <= 300 and 8 <= r["height"] <= 100]
-    boxes = []
+    boxes: list[dict[str, Any]] = []
     for r in rects:
         if any(o is not r and r["x0"] <= o["x0"] and o["x1"] <= r["x1"] and r["top"] <= o["top"] and o["bottom"] <= r["bottom"]
                and (o["width"] < r["width"] - 1 or o["height"] < r["height"] - 1) for o in rects):
