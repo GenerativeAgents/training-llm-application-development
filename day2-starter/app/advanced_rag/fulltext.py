@@ -130,14 +130,16 @@ def _field_queries(column: str, text: str) -> list[FullTextQuery]:
         # かな漢字 1 文字の語は bi-gram の列に無いので、1 文字の列で引く
         singles = [t for t in tokens if len(t) == 1 and not t.isascii()]
         tokens = [t for t in tokens if t not in singles]
+        # MatchQuery / PhraseQuery は pydantic の dataclass で、boost などは既定値付きの keyword-only 項目。
+        # pydantic の mypy プラグイン無しでは mypy が既定値を読めず必須と誤認するので、その指摘だけ抑える
         if singles:
-            queries.append(MatchQuery(" ".join(singles), UNIGRAM))
+            queries.append(MatchQuery(" ".join(singles), UNIGRAM))  # type: ignore[call-arg]
     if tokens:
-        queries.append(MatchQuery(" ".join(tokens), column))  # 語の OR
+        queries.append(MatchQuery(" ".join(tokens), column))  # type: ignore[call-arg]  # 語の OR
     for word in text.split():  # 語ごとのフレーズ一致を加点
         phrase = tokenize(word)
         if len(phrase) >= 2:
-            queries.append(PhraseQuery(" ".join(phrase), column))
+            queries.append(PhraseQuery(" ".join(phrase), column))  # type: ignore[call-arg]
     return queries
 
 

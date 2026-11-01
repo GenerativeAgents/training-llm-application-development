@@ -2652,7 +2652,7 @@ wheels = [
 
 [[package]]
 name = "openai"
-version = "3.19.0"
+version = "3.35.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
@@ -2662,9 +2662,9 @@ dependencies = [
     { name = "sniffio" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e5/87/563fce6df3a12bbb5274b1432559c7cf267d1603d85d8a959b5c286d0d22/openai-3.19.0.tar.gz", hash = "sha256:890174cae80a47357035477532b6eabbc3d31220f021896dcc2640943e87b78d", size = 1714573, upload-time = "2026-09-23T00:08:48.075Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/87/4c/609b16f2a6e9a99f27a82ce93ff75868e7cb364fe6daff50cc0c1d620772/openai-3.35.1.tar.gz", hash = "sha256:b33e6561b90586e450def8a388e7d364755325da6884fc71348be5542e043bd0", size = 2250942, upload-time = "2026-10-18T01:06:38.964Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/78/0a/45e7073e637f3586eaa5af23a3de58776d5c322d12b77bdba7e2be09ca7a/openai-3.19.0-py3-none-any.whl", hash = "sha256:eaa59585332e54abf71c8011d9bfdb3b4aecead73a0aad977e979756756d42df", size = 2070187, upload-time = "2026-09-23T00:08:45.884Z" },
+    { url = "https://files.pythonhosted.org/packages/22/7b/6d7e70f0762d1b286051bd7cb2fd0c364c1830d0f8826738673aeec05c2b/openai-3.35.1-py3-none-any.whl", hash = "sha256:264fd0fafc889021f526b7c1e5a2df5ca3e8dea874738ecd31da666434f25967", size = 2280230, upload-time = "2026-10-18T01:06:36.16Z" },
 ]
 
 [[package]]
@@ -4248,7 +4248,7 @@ requires-dist = [
     { name = "langgraph", specifier = "==1.2.12" },
     { name = "markitdown", extras = ["pdf", "pptx", "xlsx"], specifier = "==0.1.8" },
     { name = "numpy", specifier = "==2.5.3" },
-    { name = "openai", specifier = "==3.19.0" },
+    { name = "openai", specifier = "==3.35.1" },
     { name = "python-dotenv", specifier = "==1.2.3" },
     { name = "requests", specifier = "==2.34.2" },
     { name = "streamlit", specifier = "==1.64.0" },

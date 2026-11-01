@@ -13,7 +13,7 @@ dependencies = [
     "langchain-openai==1.6.4",
     "langgraph==1.2.12",
     "numpy==2.5.3",
-    "openai==3.19.0",
+    "openai==3.35.1",
     "python-dotenv==1.2.3",
     "streamlit-feedback==0.1.4",
     "streamlit==1.64.0",
