@@ -39,7 +39,7 @@ Document ingestion, retrieval, and answer generation follow this pipeline (evalu
 - `rag.py` - `RagModel` retrieves with vector or hybrid (vector + full-text, RRF) search; optionally filters by collection, reranks with the Decisions API (one `client.decisions.create` request per question: a `score` question per candidate chunk with three levels 無関係 / 手がかり / 答え; `score` is the 0–10 expected value and `level_probs` keeps the per-level probabilities), selects chunks, expands them to the rest of their `unit` (`expand="unit"`; no query-time structure judgment, since units already span continued pages), and generates an answer. `retrieve()` returns contexts and ranked IDs; `predict()` returns the answer and retrieval results, traced with Weave
 
 ### Agent loop (`app/agent_loop.py`) and coding agent CLI (`app/coding_agent.py`)
-`agent_loop(messages, tools)` drives the Chat Completions API Function calling loop (same structure as the notebook version in `part1_2`, but yields each appended message so callers can display progress). `tools` is a list of `Tool` (API definition + callable); build each with `function_to_tool(func)`, which derives the JSON schema from the function's type hints and docstring (via Pydantic `create_model`), so there is no hand-written schema or name-to-function dict. `app/coding_agent.py` is a minimal coding agent CLI built on it with three tools (`run_command`, `read_file`, `write_file`) confined to `tmp/coding-agent`; run with `make coding-agent` or `uv run python -m app.coding_agent [--work-dir DIR]`.
+`agent_loop(messages, tools)` drives the Chat Completions API Function calling loop (same structure as the notebook version in `part1_3_agent`, but yields each appended message so callers can display progress). `tools` is a list of `Tool` (API definition + callable); build each with `function_to_tool(func)`, which derives the JSON schema from the function's type hints and docstring (via Pydantic `create_model`), so there is no hand-written schema or name-to-function dict. `app/coding_agent.py` is a minimal coding agent CLI built on it with three tools (`run_command`, `read_file`, `write_file`) confined to `tmp/coding-agent`; run with `make coding-agent` or `uv run python -m app.coding_agent [--work-dir DIR]`.
 
 ### MCP Server (`app/random_number_mcp.py`)
 Example MCP (Model Context Protocol) server shown in the slides; used by the parked Streamlit MCP pages.
@@ -58,7 +58,8 @@ The main entry point is `app.py` (simple chatbot).
 ### Notebooks (`notebooks/`)
 Jupyter notebooks for interactive teaching. Executed as tests via `make test`.
 - `part1_1_llm_api_basics` - Chat Completions API, Vision, reasoning_effort, LangChain Model
-- `part1_2_workflow_and_agent` - Structured outputs, LangGraph workflow, Function calling, agent loop, `create_agent`
+- `part1_2_workflow` - Structured outputs, LangGraph workflow
+- `part1_3_agent` - Function calling, agent loop, `create_agent`
 - `part2_1_rag_basics` - RAG basics with LanceDB and Weave
 - `part2_2_eval_basics` - Retrieval and answer evaluation with Weave
 - `part3_1_eval` - Register the Advanced RAG dataset and evaluate `RagModel`
