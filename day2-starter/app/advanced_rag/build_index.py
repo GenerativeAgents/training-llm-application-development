@@ -34,7 +34,8 @@ def build(extractor: str, embedding_model: str) -> None:
     rows = [{**d, **fulltext.columns(f"{d['title']}\n{d['text']}"), "vector": v.tolist()} for d, v in zip(docs, vectors)]
     db = lancedb.connect(DB_DIR)
     # mode="overwrite" だと古いバージョンのデータが残って膨らむので、テーブルごと消してから作る
-    db.drop_table(table_name(extractor), ignore_missing=True)
+    # ignore_missing はローカルの LanceDBConnection にだけある引数(connect() の戻り値の型 DBConnection には無い)
+    db.drop_table(table_name(extractor), ignore_missing=True)  # type: ignore[call-arg]
     table = db.create_table(table_name(extractor), data=rows)
     for column in fulltext.ALL_COLUMNS:
         # 区切りは済んでいるので空白で分けるだけにし、小文字化・語幹・ストップワードは使わない。

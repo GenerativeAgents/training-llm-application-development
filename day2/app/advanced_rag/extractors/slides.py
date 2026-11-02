@@ -1,4 +1,6 @@
 """pptx の抽出器。スライド 1 枚を 1 区切り(xlsx のシート相当)にし、ID は `相対パス#slide08`。
+structured / vision では、隣り合うスライドが 1 つの表・列挙・手順の続きなら(題の行の規則、決まらなければ Decisions API で判定。
+continuation.py)、続く限りまとめて 1 区切りにする(`slide35-36`)。
 
 図解の多いスライド(省庁のポンチ絵など)は本文がほぼ図形の中にあり、1 枚に箱・矢印・表が数十個並ぶ。文字はどの抽出器でも全部取れるが、
 「どの箱の文字か」「箱同士の関係(矢印)」がどこまで残るかが抽出器で違う:
@@ -15,7 +17,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from . import Chunked, Line, Section
+from . import Chunked, Line, Section, continuation
 from .arrows import arrows_from_items, prompt_lines
 from .chunking import chunk_sections
 from .figure_rules import OMIT, RULES, SCHEMA
@@ -94,8 +96,29 @@ def sections(path: Path) -> list[Section]:
     return [(name, slide_lines(collect_slide(pres, part))) for name, part in pres.slides]
 
 
+SLIDE_NO_RE = re.compile(r"slide(\d+)")
+
+
+def merge_continued(sections: list[Section]) -> list[Section]:
+    """続きと判定された隣り合うスライドをまとめて 1 区切りにする(continuation.py)。区切り名はスライドの範囲(`slide35-36`)。
+
+    まとめた区切りの先頭が題なら見出しにして、2 つ目以降のチャンクにも付ける(chunking.py)。
+    """
+    result: list[Section] = []
+    for group in continuation.group_indices(["\n".join(t for t, _ in lines) for _, lines in sections]):
+        if len(group) == 1:
+            result.append(sections[group[0]])
+            continue
+        numbers = [int(m[1]) for i in group if (m := SLIDE_NO_RE.fullmatch(sections[i][0]))]
+        lines = [line for i in group for line in sections[i][1]]
+        if continuation.is_title(lines[0][0]):
+            lines[0] = (lines[0][0], "heading")
+        result.append((f"slide{min(numbers):02d}-{max(numbers):02d}", lines))
+    return result
+
+
 def extract(path: Path) -> list[Chunked]:
-    return chunk_sections(sections(path))
+    return chunk_sections(merge_continued(sections(path)))
 
 
 # --- vision -------------------------------------------------------------------------------------
@@ -160,4 +183,4 @@ def sections_vision(path: Path) -> list[Section]:
 
 
 def extract_vision(path: Path) -> list[Chunked]:
-    return chunk_sections(sections_vision(path))
+    return chunk_sections(merge_continued(sections_vision(path)))

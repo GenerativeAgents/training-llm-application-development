@@ -214,7 +214,7 @@ class IndexTest(unittest.TestCase):
                         with self.subTest(search=search, collection=collection):
                             result = model.retrieve("顧客検索", collection)
                             self.assertEqual(result["ranked_ids"], [str(i)])
-                    model.expand = "unit+steps"
+                    model.expand = "unit"
                     self.assertEqual(
                         model.retrieve("顧客検索", collections[0])["contexts"][0]["id"],
                         "0",

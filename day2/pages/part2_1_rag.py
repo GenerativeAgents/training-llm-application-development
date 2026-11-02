@@ -1,9 +1,10 @@
 import os
 from pathlib import Path
-from typing import TypedDict
+from typing import TypedDict, cast
 
 import lancedb
 import streamlit as st
+from lancedb.query import LanceVectorQueryBuilder
 import weave
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -44,7 +45,9 @@ def embed(texts: list[str]) -> list[list[float]]:
 @weave.op
 def search(question: str) -> list[dict[str, str]]:
     table = lancedb.connect(DB_DIR).open_table("simple_rag")
-    hits = table.search(embed([question])[0]).distance_type("cosine").limit(5).to_list()
+    # search() の注釈は基底クラスだが、ベクトルを渡すと LanceVectorQueryBuilder が返る(distance_type はそちらにしかない)
+    search = cast(LanceVectorQueryBuilder, table.search(embed([question])[0]))
+    hits = search.distance_type("cosine").limit(5).to_list()
     return [{"source": hit["source"], "text": hit["text"]} for hit in hits]
 
 
