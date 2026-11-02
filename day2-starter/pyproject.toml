@@ -38,6 +38,7 @@ dev = ["jupyter==1.1.1"]
 exclude-newer = "2 weeks"
 # emSign CA事故の修正を取り込み、他の依存の待機期間は維持する。
 exclude-newer-package = { certifi = false }
-constraint-dependencies = ["certifi>=2026.10.19"]
+# weave 0.53.9 は OTLP exporter の内部属性(_session)に依存していて、1.45 系では weave.init が失敗する。weave を上げるまで 1.44 に留める。
+constraint-dependencies = ["certifi>=2026.10.19", "opentelemetry-exporter-otlp-proto-http<1.45"]
 # emSign CA事故に対応したuvを要求する。
 required-version = ">=0.13.4"
