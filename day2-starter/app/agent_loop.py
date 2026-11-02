@@ -1,6 +1,6 @@
 """Chat Completions API の Function calling でエージェントループを回す。
 
-part1_2 のノートブックで実装した agent_loop と同じ構造で、表示に使えるように
+part1_3_agent のノートブックで実装した agent_loop と同じ構造で、表示に使えるように
 追加されたメッセージ（LLM の応答・ツールの実行結果）を順に yield する。
 CLI（app/coding_agent.py）では print し、Streamlit（pages/part1_3_agent.py）では画面に描く。
 """
